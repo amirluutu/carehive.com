@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}User Dashboard | Carehive Homecare{% endblock %}
+
+{% block head %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row min-h-screen">
+    <!-- Sidebar Navigation -->
+    <aside class="w-full md:w-64 sidebar-gradient text-white flex-shrink-0 p-6 flex flex-col justify-between shadow-xl z-20">
+        <div>
+            <div class="flex items-center space-x-3 mb-8">
+                <i class="fa-solid fa-heart-pulse text-3xl text-pink-300 animate-pulse"></i>
+                <div>
+                    <h1 class="font-bold text-lg tracking-wide leading-tight">Carehive</h1>
+                    <span class="text-xs text-indigo-200">Homecare Services</span>
+                </div>
+            </div>
+
+            <nav class="space-y-2">
+                <a href="#overview" class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 transition-all font-medium text-white">
+                    <i class="fa-solid fa-chart-line w-5"></i>
+                    <span>Overview</span>
+                </a>
+                <a href="#appointments" class="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-indigo-100 hover:text-white">
+                    <i class="fa-regular fa-calendar-check w-5"></i>
+                    <span>Appointments</span>
+                </a>
+                <a href="#charts" class="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-chart-simple w-5"></i>
+                    <span>AI Analytics</span>
+                </a>
+                <a href="#notifications" class="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-bell w-5"></i>
+                    <span>Notifications</span>
+                </a>
+                <a href="#profile" class="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-user-gear w-5"></i>
+                    <span>Profile</span>
+                </a>
+                <a href="#settings" class="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-indigo-100 hover:text-white">
+                    <i class="fa-solid fa-sliders w-5"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-white/10">
+            <div class="flex items-center space-x-2 text-xs text-emerald-300 bg-black/20 px-3 py-2 rounded-lg">
+                <i class="fa-solid fa-circle text-[8px] animate-ping"></i>
+                <span class="font-semibold text-white">Active Member</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-6 md:p-10 max-w-6xl mx-auto w-full space-y-8 overflow-y-auto">
+        <!-- Overview Section -->
+        <section id="overview" class="scroll-mt-6">
+            <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
+                <div class="relative z-10 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-extrabold mb-2">Welcome back, {{ user.name }}! 👋</h2>
+                        <p class="text-indigo-100 text-base md:text-lg">We’re delighted to assist you with your health and care routine today.</p>
+                    </div>
+                    <span class="hidden sm:inline-block text-xs font-bold uppercase tracking-wider bg-emerald-400 text-slate-900 px-3 py-1.5 rounded-full shadow-md">Active Member</span>
+                </div>
+                <i class="fa-solid fa-user-doctor absolute -right-4 -bottom-6 text-9xl opacity-10"></i>
+            </div>
+
+            <!-- Stats -->
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-calendar-days"></i>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-extrabold text-slate-800">{{ stats.total }}</div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Total Booked</div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-extrabold text-slate-800">{{ stats.completed }}</div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Completed</div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-extrabold text-slate-800">{{ stats.pending }}</div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Pending</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Appointments -->
+        <section id="appointments" class="glass-card bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 scroll-mt-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                    <i class="fa-regular fa-calendar-check text-indigo-600 mr-2"></i> Next Appointment
+                </h3>
+                <span class="text-xs font-semibold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">Confirmed</span>
+            </div>
+
+            {% if next_appointment %}
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <div class="text-2xl font-bold text-slate-800">{{ next_appointment.date }}</div>
+                    <div class="text-sm font-medium text-slate-500 mt-1">
+                        <i class="fa-regular fa-clock mr-1"></i> {{ next_appointment.time }}
+                    </div>
+                </div>
+                <button onclick="triggerToast('Reminder notification is active.')" class="text-indigo-600 hover:text-indigo-800 text-sm font-semibold underline text-left sm:text-right">
+                    Reminder Set
+                </button>
+            </div>
+            {% else %}
+            <div class="bg-slate-50 p-4 rounded-xl text-center text-slate-500">
+                No upcoming appointments scheduled.
+            </div>
+            {% endif %}
+
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button onclick="openModal('appointmentModal')" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center">
+                    <i class="fa-solid fa-plus mr-2"></i> Book Appt
+                </button>
+                <button onclick="openModal('profileModal')" class="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-medium py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center">
+                    <i class="fa-solid fa-user-gear mr-2"></i> Profile
+                </button>
+                <button onclick="triggerToast('Loading appointment history...')" class="bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-all flex items-center justify-center">
+                    <i class="fa-solid fa-clock-rotate-left mr-2"></i> History
+                </button>
+            </div>
+        </section>
+
+        <!-- Analytics Chart -->
+        <section id="charts" class="glass-card bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 scroll-mt-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                    <i class="fa-solid fa-chart-simple text-purple-600 mr-2"></i> AI Chart Bot
+                </h3>
+                <span class="text-xs bg-purple-100 text-purple-800 font-semibold px-2.5 py-0.5 rounded-full">Live Stats</span>
+            </div>
+            <div class="relative h-64 w-full">
+                <canvas id="appointmentsChart"></canvas>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Modals & Toasts -->
+<div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl hidden transition-all duration-300 flex items-center space-x-3 z-50">
+    <i class="fa-solid fa-circle-info text-indigo-400"></i>
+    <span id="toastMsg">Notification</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function triggerToast(message) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toastMsg').innerText = message;
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    const ctx = document.getElementById('appointmentsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Total', 'Completed', 'Pending'],
+            datasets: [{
+                data: [{{ stats.total }}, {{ stats.completed }}, {{ stats.pending }}],
+                backgroundColor: ['#6f42c1', '#198754', '#ffc107'],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+</script>
+{% endblock %}

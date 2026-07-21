@@ -1,14 +1,582 @@
 import sqlite3
-from flask import Flask, redirect, render_template_string, request, url_for
+import hashlib
+import json
+import os
+from flask import Flask, render_template_string, request, redirect, url_for, session
+from datetime import datetime, timezone
 
 app = Flask(__name__)
-app.secret_key = "carehive_secret_key_uganda"
-DB_NAME = "carehive.db"
+app.secret_key = 'super-secret-carehive-key'
+DB_NAME = 'carehive.db'
 
+# --- SECURITY HELPER ---
+def hash_password(password):
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
+# --- DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            password TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            action TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('SELECT * FROM users WHERE email = ?', ('admin@carehive.com',))
+    if not cursor.fetchone():
+        master_pass = hash_password('admin123')
+        cursor.execute(
+            'INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
+            ('admin@carehive.com', 'System Administrator', 'admin', master_pass)
+        )
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+
+USER_STATUS = {}
+
+def log_activity(email, action):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    cursor.execute('INSERT INTO logs (email, action, timestamp) VALUES (?, ?, ?)', (email, action, now))
+    conn.commit()
+    conn.close()
+
+def get_user_activity_info(email):
+    if email not in USER_STATUS or USER_STATUS[email]['status'] == 'Logged Out':
+        return {'status': 'Logged Out', 'duration': '0m', 'last_active': 'N/A'}
+    
+    info = USER_STATUS[email]
+    now = datetime.now(timezone.utc)
+    duration_secs = int((now - info['login_time']).total_seconds())
+    mins, secs = divmod(duration_secs, 60)
+    hours, mins = divmod(mins, 60)
+    duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m {secs}s"
+    
+    idle_secs = (now - info['last_active']).total_seconds()
+    current_status = 'Paused / Idle' if idle_secs > 300 else 'Active Online'
+    
+    return {
+        'status': current_status,
+        'duration': duration_str,
+        'last_active': info['last_active'].strftime("%H:%M:%S UTC")
+    }
+
+# --- COMMON STYLES ---
+COMMON_HEAD = """
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carehive Homecare Limited</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-light: #eff6ff;
+            --secondary: #0f172a;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --purple: #7c3aed;
+            --accent-green: #10b981;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; }
+
+        .navbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.2rem 2.5rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary); text-decoration: none; }
+        .nav-links { display: flex; gap: 1rem; align-items: center; }
+
+        .btn { background: var(--primary); color: white; border: none; padding: 0.75rem 1.4rem; border-radius: 10px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; }
+        .btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+        .btn-outline:hover { background: var(--bg); border-color: #cbd5e1; }
+        .btn-purple { background: var(--purple); }
+
+        .hero { background: linear-gradient(135deg, #eff6ff 0%, #ffffff 50%, #f0fdf4 100%); padding: 5rem 1.5rem 4rem; text-align: center; border-bottom: 1px solid var(--border); }
+        .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: #dbeafe; color: #1e40af; font-size: 0.85rem; font-weight: 700; padding: 0.4rem 1rem; border-radius: 9999px; margin-bottom: 1.5rem; }
+        .hero h1 { font-size: 3.2rem; font-weight: 800; color: var(--secondary); letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 1.2rem; }
+        .hero h1 span { color: var(--primary); }
+        .hero p { color: var(--text-muted); font-size: 1.25rem; max-width: 650px; margin: 0 auto 2.5rem; }
+
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 1.5rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.8rem; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03); transition: transform 0.2s, box-shadow 0.2s; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.08); }
+        .card-highlight { border: 2px solid var(--primary); position: relative; }
+        .popular-badge { position: absolute; top: -12px; right: 20px; background: var(--primary); color: white; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.8rem; border-radius: 9999px; }
+
+        .icon-box { width: 48px; height: 48px; background: var(--primary-light); color: var(--primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 1.2rem; }
+
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; margin: -2.5rem auto 4rem; position: relative; z-index: 10; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); text-align: center; }
+        .stat-item h3 { font-size: 2rem; font-weight: 800; color: var(--primary); }
+        .stat-item p { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+
+        .pricing-price { font-size: 2.2rem; font-weight: 800; color: var(--secondary); margin: 0.8rem 0; }
+        .pricing-price span { font-size: 0.9rem; color: var(--text-muted); font-weight: 400; }
+        .feature-list { list-style: none; margin: 1.5rem 0; text-align: left; }
+        .feature-list li { padding: 0.4rem 0; font-size: 0.95rem; color: var(--text); display: flex; align-items: center; gap: 8px; }
+
+        .cta-banner { background: linear-gradient(135deg, var(--secondary) 0%, #1e293b 100%); color: white; border-radius: 20px; padding: 3rem 2rem; text-align: center; margin: 4rem 0; }
+        .cta-banner h2 { font-size: 2rem; font-weight: 800; margin-bottom: 0.8rem; }
+        .cta-banner p { color: #94a3b8; max-width: 600px; margin: 0 auto 1.8rem; }
+
+        .footer { background: var(--surface); border-top: 1px solid var(--border); padding: 3rem 1.5rem 1.5rem; margin-top: 4rem; }
+        .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem; }
+        .footer-col h4 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--secondary); }
+        .footer-col ul { list-style: none; }
+        .footer-col ul li { margin-bottom: 0.5rem; }
+        .footer-col ul li a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }
+        .footer-col ul li a:hover { color: var(--primary); }
+        .footer-bottom { text-align: center; border-top: 1px solid var(--border); padding-top: 1.5rem; color: var(--text-muted); font-size: 0.85rem; }
+
+        .badge { padding: 0.3rem 0.8rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; }
+        .badge-active { background: #dcfce7; color: #166534; }
+        .badge-paused { background: #fef3c7; color: #92400e; }
+        .badge-admin { background: #f3e8ff; color: #6b21a8; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.3rem; font-weight: 500; font-size: 0.9rem; }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
+        .alert { background: #fee2e2; color: #991b1b; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
+        .status-box { background: #f1f5f9; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; border-left: 4px solid var(--primary); }
+    </style>
+"""
+
+# --- HOME PAGE TEMPLATE ---
+HOME_HTML = COMMON_HEAD + """
+<body>
+    <nav class="navbar">
+        <a href="/" class="logo">🏥 Carehive</a>
+        <div class="nav-links">
+            {% if session.get('user') %}
+                <a href="/dashboard" class="btn btn-outline">Dashboard</a>
+                <a href="/logout" class="btn">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-outline">Staff Login</a>
+                <a href="/signup" class="btn">Client Sign Up</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <section class="hero">
+        <div class="hero-badge">✨ Professional In-Home Medical Care</div>
+        <h1>Compassionate Care,<br><span>Right at Your Doorstep</span></h1>
+        <p>Connecting patients with qualified medical professionals for personal home visits, ongoing nursing, and clinical monitoring.</p>
+        <div>
+            {% if session.get('user') %}
+                <a href="/dashboard" class="btn" style="padding: 0.9rem 2.2rem; font-size: 1.05rem;">Go to Dashboard →</a>
+            {% else %}
+                <a href="/signup" class="btn" style="padding: 0.9rem 2.2rem; font-size: 1.05rem;">Get Started as Client</a>
+                <a href="/login" class="btn btn-outline" style="padding: 0.9rem 2.2rem; font-size: 1.05rem;">Staff Access</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- STATS BAR -->
+        <div class="stats-bar">
+            <div class="stat-item"><h3>24 / 7</h3><p>Emergency Assistance</p></div>
+            <div class="stat-item"><h3>100%</h3><p>Verified Medical Staff</p></div>
+            <div class="stat-item"><h3>1,200+</h3><p>Patients Supported</p></div>
+            <div class="stat-item"><h3>4.9 ★</h3><p>Client Satisfaction</p></div>
+        </div>
+
+        <!-- FEATURES SECTION -->
+        <h2 style="text-align: center; font-size: 2rem; margin-bottom: 0.5rem; color: var(--secondary);">Why Choose Carehive?</h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 2.5rem;">Dedicated home healthcare solutions designed around your needs.</p>
+        <div class="grid" style="margin-bottom: 4rem;">
+            <div class="card card-hover">
+                <div class="icon-box">🩺</div>
+                <h3 style="margin-bottom: 0.5rem;">Doctor Home Visits</h3>
+                <p style="color: var(--text-muted); font-size: 0.95rem;">Scheduled home visits from registered doctors for diagnoses, prescriptions, and health checks.</p>
+            </div>
+            <div class="card card-hover">
+                <div class="icon-box">💉</div>
+                <h3 style="margin-bottom: 0.5rem;">Dedicated Nursing</h3>
+                <p style="color: var(--text-muted); font-size: 0.95rem;">Experienced nurses available for daily care, vitals tracking, post-surgery recovery, and medication management.</p>
+            </div>
+            <div class="card card-hover">
+                <div class="icon-box">🔒</div>
+                <h3 style="margin-bottom: 0.5rem;">Secure Medical Portal</h3>
+                <p style="color: var(--text-muted); font-size: 0.95rem;">Role-based portal ensuring encrypted access for patients, doctors, nurses, and site administrators.</p>
+            </div>
+        </div>
+
+        <!-- PRICING & PACKAGES -->
+        <h2 style="text-align: center; font-size: 2rem; margin-bottom: 0.5rem; color: var(--secondary);">Care Packages</h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 2.5rem;">Transparent pricing for quality in-home medical services.</p>
+        <div class="grid" style="margin-bottom: 4rem;">
+            <div class="card card-hover" style="text-align: center;">
+                <h3>Routine Nursing Visit</h3>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Single visit for vitals & dressing</p>
+                <div class="pricing-price">$45 <span>/ visit</span></div>
+                <ul class="feature-list">
+                    <li>✅ Blood Pressure & Vitals Check</li>
+                    <li>✅ Wound Care & Dressings</li>
+                    <li>✅ Medication Administration</li>
+                    <li>✅ Visit Summary Report</li>
+                </ul>
+                <a href="/signup" class="btn btn-outline" style="width: 100%; justify-content: center;">Book Nurse Visit</a>
+            </div>
+
+            <div class="card card-hover card-highlight" style="text-align: center;">
+                <div class="popular-badge">MOST POPULAR</div>
+                <h3>Doctor Consultation</h3>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Comprehensive in-home doctor checkup</p>
+                <div class="pricing-price">$120 <span>/ consultation</span></div>
+                <ul class="feature-list">
+                    <li>✅ Full Physical Examination</li>
+                    <li>✅ Prescription Issuance</li>
+                    <li>✅ Lab Sample Collection Onsite</li>
+                    <li>✅ Direct Follow-up Support</li>
+                </ul>
+                <a href="/signup" class="btn" style="width: 100%; justify-content: center;">Request Doctor Visit</a>
+            </div>
+
+            <div class="card card-hover" style="text-align: center;">
+                <h3>Elderly Continuous Care</h3>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Monthly dedicated nursing plan</p>
+                <div class="pricing-price">$490 <span>/ month</span></div>
+                <ul class="feature-list">
+                    <li>✅ 3 Weekly Nurse Visits</li>
+                    <li>✅ Monthly Doctor Assessment</li>
+                    <li>✅ 24/7 On-call Nursing Hotline</li>
+                    <li>✅ Dedicated Care Coordinator</li>
+                </ul>
+                <a href="/signup" class="btn btn-outline" style="width: 100%; justify-content: center;">Subscribe to Plan</a>
+            </div>
+        </div>
+
+        <!-- TESTIMONIALS -->
+        <h2 style="text-align: center; font-size: 2rem; margin-bottom: 0.5rem; color: var(--secondary);">What Families Say</h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 2.5rem;">Real experiences from patients and caregivers.</p>
+        <div class="grid" style="margin-bottom: 4rem;">
+            <div class="card">
+                <p style="font-style: italic; color: var(--text-muted); margin-bottom: 1rem;">"Carehive brought peace of mind to our family. Nurse Mary provided gentle, reliable care for my mother after her surgery."</p>
+                <strong>— Sarah M.</strong> <small style="color: var(--primary); display: block;">Family Caregiver</small>
+            </div>
+            <div class="card">
+                <p style="font-style: italic; color: var(--text-muted); margin-bottom: 1rem;">"Having a doctor visit our father at home saved us so many stressful hospital trips. The medical portal is clear and easy to use."</p>
+                <strong>— David K.</strong> <small style="color: var(--primary); display: block;">Patient Son</small>
+            </div>
+            <div class="card">
+                <p style="font-style: italic; color: var(--text-muted); margin-bottom: 1rem;">"Top notch professional service! The nurse arrives promptly, tracks all vitals on the portal, and explains everything clearly."</p>
+                <strong>— Linda T.</strong> <small style="color: var(--primary); display: block;">Client</small>
+            </div>
+        </div>
+
+        <!-- CALL TO ACTION BANNER -->
+        <div class="cta-banner">
+            <h2>Ready for Quality In-Home Care?</h2>
+            <p>Register a client account in under two minutes or contact our support team for urgent consultations.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="/signup" class="btn" style="background: white; color: var(--secondary); font-weight: 700;">Sign Up as Client</a>
+                <a href="tel:+18005550199" class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.3);">📞 Call: +1 (800) 555-0199</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h4 style="color: var(--primary); font-size: 1.3rem;">🏥 Carehive</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Providing safe, professional, and accessible home healthcare services.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="#">Doctor Home Visits</a></li>
+                        <li><a href="#">Nurse Assist</a></li>
+                        <li><a href="#">Elderly Care</a></li>
+                        <li><a href="#">Post-Op Recovery</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Portals</h4>
+                    <ul>
+                        <li><a href="/login">Staff Login</a></li>
+                        <li><a href="/signup">Client Registration</a></li>
+                        <li><a href="/dashboard">Dashboard</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Contact</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">📍 100 Medical Plaza, Suite 400</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem;">✉️ support@carehive.com</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.3rem;">📞 +1 (800) 555-0199</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Carehive Homecare Limited. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
+"""
+
+SIGNUP_HTML = COMMON_HEAD + """
+<body>
+    <nav class="navbar"><a href="/" class="logo">🏥 Carehive</a><div class="nav-links"><a href="/" class="btn btn-outline">← Back to Home</a></div></nav>
+    <div class="container" style="max-width: 450px; margin-top: 3rem;">
+        <div class="card">
+            <h2 style="text-align: center; margin-bottom: 0.5rem;">Client Registration</h2>
+            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Public signup for clients & patients</p>
+            {% if error %} <div class="alert">{{ error }}</div> {% endif %}
+            <form action="/signup" method="POST">
+                <div class="form-group"><label>Full Name</label><input type="text" name="fullname" required></div>
+                <div class="form-group"><label>Email Address</label><input type="email" name="email" required></div>
+                <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+                <button type="submit" class="btn" style="width: 100%; justify-content: center;">Create Client Account</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+LOGIN_HTML = COMMON_HEAD + """
+<body>
+    <nav class="navbar"><a href="/" class="logo">🏥 Carehive</a><div class="nav-links"><a href="/" class="btn btn-outline">← Back to Home</a></div></nav>
+    <div class="container" style="max-width: 400px; margin-top: 3rem;">
+        <div class="card">
+            <h2 style="text-align: center; margin-bottom: 0.5rem;">Account Login</h2>
+            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Access Client & Staff Portals</p>
+            {% if error %} <div class="alert">{{ error }}</div> {% endif %}
+            <form action="/login" method="POST">
+                <div class="form-group"><label>Email Address</label><input type="email" name="email" required></div>
+                <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+                <button type="submit" class="btn" style="width: 100%; justify-content: center;">Log In</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+DASHBOARD_HTML = COMMON_HEAD + """
+<body>
+    <nav class="navbar">
+        <a href="/" class="logo">🏥 Carehive</a>
+        <div class="nav-links">
+            <a href="/" class="btn btn-outline">← Back to Home</a>
+            <span>Logged in as: <strong>{{ session['user']['fullname'] }}</strong></span>
+            <a href="/logout" class="btn">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" style="margin-top: 2rem;">
+        <div class="status-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Session Tracker:</strong>
+                    <span class="badge {% if activity['status'] == 'Active Online' %}badge-active{% else %}badge-paused{% endif %}">
+                        {{ activity['status'] }}
+                    </span>
+                </div>
+                <div>
+                    <span>⏱ Online Duration: <strong>{{ activity['duration'] }}</strong></span> | 
+                    <span>Last Active: <strong>{{ activity['last_active'] }}</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div>
+                <h1>Dashboard</h1>
+                <p style="color: var(--text-muted);">Role Overview & Administration</p>
+            </div>
+            <span class="badge {% if session['user']['role'] == 'admin' %}badge-admin{% endif %}">
+                Role: {{ session['user']['role'].upper() }}
+            </span>
+        </div>
+
+        {% if session['user']['role'] == 'admin' %}
+            <div class="grid">
+                <div class="card">
+                    <h3>➕ Admin: Onboard Staff</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Only Administrators can create Doctor or Nurse roles.</p>
+                    <form action="/admin/create-worker" method="POST">
+                        <div class="form-group">
+                            <label>Assigned Role</label>
+                            <select name="role" required>
+                                <option value="nurse">Registered Nurse</option>
+                                <option value="doctor">Medical Doctor</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Full Name</label><input type="text" name="fullname" placeholder="Dr. Sarah" required></div>
+                        <div class="form-group"><label>Work Email</label><input type="email" name="email" placeholder="staff@carehive.com" required></div>
+                        <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+                        <button type="submit" class="btn btn-purple" style="width: 100%; justify-content: center;">Create Worker Account</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>📜 Activity & Session Logs</h3>
+                    <div style="max-height: 320px; overflow-y: auto; margin-top: 1rem;">
+                        <ul style="list-style: none;">
+                            {% for log in logs|reverse %}
+                                <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+                                    <strong>{{ log[0] }}</strong> — 
+                                    <span style="color: var(--primary);">{{ log[1] }}</span><br>
+                                    <small style="color: var(--text-muted);">{{ log[2] }}</small>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <h3>👤 Client Workspace</h3>
+                <p>Request home health visits, view assigned nurses, and check consultation logs.</p>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+"""
+
+# --- ROUTE HANDLERS ---
+@app.before_request
+def update_last_active():
+    if 'user' in session:
+        email = session['user']['email']
+        if email in USER_STATUS:
+            USER_STATUS[email]['last_active'] = datetime.now(timezone.utc)
+
+@app.route('/')
+def home():
+    return render_template_string(HOME_HTML)
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        fullname = request.form.get('fullname')
+        hashed_pw = hash_password(request.form.get('password'))
+
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
+                           (email, fullname, 'client', hashed_pw))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return render_template_string(SIGNUP_HTML, error="Account with this email already exists.")
+        conn.close()
+
+        now = datetime.now(timezone.utc)
+        USER_STATUS[email] = {'login_time': now, 'last_active': now, 'status': 'Active Online'}
+        log_activity(email, "Client Registered & Logged In")
+
+        session['user'] = {'fullname': fullname, 'role': 'client', 'email': email}
+        return redirect(url_for('dashboard'))
+    return render_template_string(SIGNUP_HTML)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        hashed_pw = hash_password(request.form.get('password'))
+
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute('SELECT name, role FROM users WHERE email = ? AND password = ?', (email, hashed_pw))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            now = datetime.now(timezone.utc)
+            USER_STATUS[email] = {'login_time': now, 'last_active': now, 'status': 'Active Online'}
+            log_activity(email, "User Logged In")
+
+            session['user'] = {'fullname': user[0], 'role': user[1], 'email': email}
+            return redirect(url_for('dashboard'))
+        
+        error = "Invalid email address or password."
+    return render_template_string(LOGIN_HTML, error=error)
+
+@app.route('/admin/create-worker', methods=['POST'])
+def create_worker():
+    if session.get('user', {}).get('role') != 'admin':
+        return "Unauthorized Access: Admin privileges required.", 403
+    
+    email = request.form.get('email')
+    fullname = request.form.get('fullname')
+    role = request.form.get('role')
+    hashed_pw = hash_password(request.form.get('password'))
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
+                       (email, fullname, role, hashed_pw))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass
+    conn.close()
+
+    log_activity(session['user']['email'], f"Created {role.capitalize()} account for {email}")
+    return redirect(url_for('dashboard'))
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    
+    email = session['user']['email']
+    activity_info = get_user_activity_info(email)
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
+    logs = cursor.fetchall()
+    conn.close()
+
+    return render_template_string(
+        DASHBOARD_HTML, 
+        logs=logs, 
+        activity=activity_info
+    )
+
+@app.route('/logout')
+def logout():
+    if 'user' in session:
+        email = session['user']['email']
+        log_activity(email, "User Logged Out")
+        if email in USER_STATUS:
+            USER_STATUS[email]['status'] = 'Logged Out'
+        session.pop('user', None)
+    return redirect(url_for('home'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
     # Create appointments / client registration table
     cursor.execute(
@@ -395,7 +963,7 @@ def add_review():
         """
         INSERT INTO reviews (client_name, rating, comment)
         VALUES (?, ?, ?)
-    """,
+        """,
         (client_name, rating, comment),
     )
     conn.commit()
@@ -414,18 +982,33 @@ def admin():
     return render_template_string(ADMIN_HTML, appointments=appointments)
 
 
+@app.route("/dashboard")
+def dashboard():
+    return "<h1>Welcome to the Admin Dashboard</h1>"
+
+@app.route("/user_dashboard")
+def user_dashboard():
+    user = {"name": "Musa"}
+    next_appointment = {"date": "July 25", "time": "10:00 AM"}
+    stats = {"total": 5, "completed": 3, "pending": 2}
+    notifications = [
+        "Your appointment was confirmed.",
+        "New service available."
+    ]
+    return render_template(
+        "user_dashboard.html",
+        user=user,
+        next_appointment=next_appointment,
+        stats=stats,
+        notifications=notifications
+    )
+
 if __name__ == "__main__":
-    print(
-        "\n==============================================="
-    )
-    print(
-        " CAREHIVE HOMECARE LIMITED WEBSITE IS RUNNING ON LOCALHOST!"
-    )
+    print("\n===============================================")
+    print(" CAREHIVE HOMECARE LIMITED WEBSITE IS RUNNING ON LOCALHOST!")
     print(" Open your web browser and navigate to:")
     print(" --> http://localhost:5000 OR http://127.0.0.1:5000")
-    print(
-        "===============================================\n"
-    )
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    print("===============================================\n")
 
+    app.run(host="127.0.0.1", port=5000, debug=True)
 

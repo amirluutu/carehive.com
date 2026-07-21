@@ -1,45 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carehive Homecare Limited | Professional Safe Care at Home</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-slate-50 text-slate-800 font-sans">
+{% extends "base.html" %}
 
-    <!-- Top Contact Ribbon -->
-    <div class="bg-blue-900 text-white text-sm py-2 px-6 flex justify-between items-center flex-wrap">
-        <div class="flex items-center space-x-6">
-            <span><i class="fa-solid fa-phone text-red-400 mr-2"></i>+256 753 976 912</span>
-            <span><i class="fa-brands fa-whatsapp text-green-400 mr-2"></i>+256 708 083 118</span>
-        </div>
-        <div class="text-xs text-blue-200">Elite Healthcare Provider Across Uganda</div>
-    </div>
+{% block title %}Carehive Homecare Limited | Professional Safe Care at Home{% endblock %}
 
-    <!-- Main Navigation Header -->
-    <header class="bg-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="w-12 h-12 rounded-full border-2 border-blue-700 flex items-center justify-center bg-blue-50 text-blue-800 font-bold text-xl">
-                    <i class="fa-solid fa-cross text-2xl text-blue-700"></i>
-                </div>
-                <div>
-                    <h1 class="font-extrabold text-xl text-blue-900 tracking-tight">CAREHIVE HOMECARE LIMITED</h1>
-                    <p class="text-xs text-red-600 font-semibold tracking-wide">PROFESSIONAL SAFE CARE & NURSING AT YOUR HOME</p>
-                </div>
-            </div>
-            <nav class="hidden md:flex space-x-6 text-sm font-semibold">
-                <a href="#about" class="hover:text-blue-700 transition">About Us</a>
-                <a href="#services" class="hover:text-blue-700 transition">Services</a>
-                <a href="#register" class="hover:text-blue-700 transition">Book Care</a>
-                <a href="#reviews" class="hover:text-blue-700 transition">Reviews</a>
-                <a href="/admin" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-md border">Admin Dashboard</a>
-            </nav>
-        </div>
-    </header>
-
+{% block content %}
     <!-- Hero Banner -->
     <section class="relative bg-gradient-to-r from-blue-900 to-indigo-800 text-white py-20 px-6">
         <div class="max-w-5xl mx-auto text-center">
@@ -70,7 +33,7 @@
                 <i class="fa-solid fa-bullseye text-red-600"></i> Our Mission
             </h3>
             <p class="text-slate-600 leading-relaxed">
-                Extraordinary service is born out of strong and true foundations. It is this genuine passion for caring of the highest quality that drives consistent excellence and unwavering confidence in what we do. This begins with the constant education and support for every Carehive Homecare Limited employee that enables the enrichment of lives throughout communities. It is this invaluable effect that creates recognition of Carehive Homecare Limited as a leader in home health care services.
+                Extraordinary service is born out of strong and true foundations. It is this genuine passion for caring of the highest quality that drives consistent excellence and unwavering confidence in what we do.
             </p>
         </div>
     </section>
@@ -178,6 +141,8 @@
                     <p class="text-slate-600 italic">"{{ r['comment'] }}"</p>
                     <span class="text-xs text-slate-400 mt-3 block">{{ r['created_at'] }}</span>
                 </div>
+                {% else %}
+                <p class="text-slate-500 text-center col-span-2">No reviews posted yet.</p>
                 {% endfor %}
             </div>
 
@@ -197,14 +162,4 @@
             </div>
         </div>
     </section>
-
-    <!-- Footer -->
-    <footer class="bg-slate-900 text-slate-400 py-10 px-6">
-        <div class="max-w-7xl mx-auto text-center space-y-4">
-            <h3 class="text-white font-bold text-lg">CAREHIVE HOMECARE LIMITED</h3>
-            <p class="text-sm">Contact Appointments: +256 753 976 912 | WhatsApp: +256 708 083 118</p>
-            <p class="text-xs text-slate-500">&copy; 2026 Carehive Homecare Limited. All rights reserved.</p>
-        </div>
-    </footer>
-</body>
-</html>
+{% endblock %}

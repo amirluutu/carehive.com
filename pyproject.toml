@@ -1,0 +1,10 @@
+[project]
+name = "carehive-homecare"
+version = "0.1.0"
+description = "Carehive Homecare Flask App"
+dependencies = [
+    "flask",
+]
+
+[tool.vercel]
+entrypoint = "Carehive_Homecare:app"
