@@ -47,23 +47,32 @@
             </div>
             <div class="grid md:grid-cols-3 gap-6">
                 {% set services = [
-                    ("Blood Pressure Check", "fa-heart-pulse"),
-                    ("Blood Sugar Check", "fa-droplet"),
-                    ("Wound Dressing", "fa-bandage"),
-                    ("Injection (Prescribed)", "fa-syringe"),
-                    ("Catheter Care", "fa-user-nurse"),
-                    ("Baby and Maternal Care", "fa-baby"),
-                    ("Child Care", "fa-child-reaching"),
-                    ("Elderly Care", "fa-wheelchair"),
-                    ("Post Surgery Care", "fa-bed-pulse")
+                    ("Blood Pressure Check", "fa-heart-pulse", ""),
+                    ("Blood Sugar Check", "fa-droplet", ""),
+                    ("Wound Dressing & Broncure", "fa-bandage", "broncure.png"),
+                    ("Injection (Prescribed)", "fa-syringe", ""),
+                    ("Catheter Care", "fa-user-nurse", ""),
+                    ("Baby and Maternal Care", "fa-baby", "baby care.png"),
+                    ("Child Care", "fa-child-reaching", ""),
+                    ("Elderly & Nursing Care", "fa-wheelchair", "nursing care.jpg"),
+                    ("Post Surgery Care", "fa-bed-pulse", "")
                 ] %}
-                {% for name, icon in services %}
-                <div class="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition">
-                    <div class="w-12 h-12 bg-blue-100 text-blue-800 rounded-lg flex items-center justify-center mb-4 text-xl">
-                        <i class="fa-solid {{ icon }}"></i>
+                {% for name, icon, img_file in services %}
+                <div class="bg-white rounded-xl shadow-sm border hover:shadow-md transition overflow-hidden flex flex-col">
+                    {% if img_file %}
+                    <div class="h-48 w-full overflow-hidden bg-slate-200">
+                        <img src="{{ url_for('static', filename='images/' ~ img_file) }}" alt="{{ name }}" class="w-full h-full object-cover">
                     </div>
-                    <h4 class="font-bold text-lg text-slate-800 mb-2">{{ name }}</h4>
-                    <p class="text-sm text-slate-500">Delivered by certified healthcare professionals directly at your residence.</p>
+                    {% endif %}
+                    <div class="p-6 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="w-12 h-12 bg-blue-100 text-blue-800 rounded-lg flex items-center justify-center mb-4 text-xl">
+                                <i class="fa-solid {{ icon }}"></i>
+                            </div>
+                            <h4 class="font-bold text-lg text-slate-800 mb-2">{{ name }}</h4>
+                            <p class="text-sm text-slate-500">Delivered by certified healthcare professionals directly at your residence.</p>
+                        </div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
