@@ -1007,7 +1007,7 @@ INDEX_HTML = """
                 areaName = document.getElementById('manual-area-input').value.trim();
             } else {
                 if (!dist) {
-                    alert("Please select a District, or choose \"Other / My District Isn't Listed\" if yours isn't shown.");
+                    alert("Please select a District, or choose the 'Other / My District Isn't Listed' option if yours isn't shown.");
                     return false;
                 }
                 if (areaName === '__other_location__') {
@@ -1017,7 +1017,7 @@ INDEX_HTML = """
                         return false;
                     }
                 } else if (!areaName) {
-                    alert("Please select your Sub-County/Division, or choose \"Other\" to type it manually.");
+                    alert("Please select your Sub-County/Division, or choose 'Other' to type it manually.");
                     return false;
                 }
             }
