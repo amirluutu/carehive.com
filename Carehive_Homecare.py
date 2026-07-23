@@ -274,6 +274,8 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
     if 'status' not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
+    if 'on_duty' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN on_duty INTEGER DEFAULT 0")
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
@@ -344,7 +346,7 @@ INDEX_HTML = """
             <div class="flex items-center space-x-6">
                 <a href="tel:+256753976912" class="hover:text-white transition-colors"><i class="fa-solid fa-phone text-blue-400 mr-2"></i>+256 753 976 912</a>
                 <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400 mr-2"></i>+256 708 083 118</a>
-                <a href="mailto:info@carehive.com" class="hidden sm:inline hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400 mr-2"></i>info@carehive.com</a>
+                <a href="mailto:carehivehomecare@gmail.com" class="hidden sm:inline hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400 mr-2"></i>carehivehomecare@gmail.com</a>
             </div>
             <div class="text-blue-300 font-medium"><i class="fa-solid fa-location-dot mr-1"></i>Kampala & Greater Uganda</div>
         </div>
@@ -443,8 +445,17 @@ INDEX_HTML = """
 
     <main>
         <section class="relative py-16 lg:py-24 overflow-hidden bg-slate-900 text-white">
+            <style>
+                @keyframes hero-ken-burns {
+                    0%   { transform: scale(1) translate(0, 0); }
+                    50%  { transform: scale(1.12) translate(-1.5%, -1%); }
+                    100% { transform: scale(1) translate(0, 0); }
+                }
+                #hero-bg-img { animation: hero-ken-burns 22s ease-in-out infinite; }
+                @media (prefers-reduced-motion: reduce) { #hero-bg-img { animation: none; } }
+            </style>
             <div class="absolute inset-0 z-0">
-                <img src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-60" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
+                <img id="hero-bg-img" src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-60" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
                 <div class="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/75 to-slate-900/40"></div>
             </div>
             <div class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
@@ -495,7 +506,8 @@ INDEX_HTML = """
                                 </div>
                             </div>
                             <span class="bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> On Duty
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                {% if site_stats['on_duty_count'] > 0 %}{{ site_stats['on_duty_count'] }} On Duty{% else %}On Duty{% endif %}
                             </span>
                         </div>
                         <div class="space-y-3">
@@ -518,7 +530,7 @@ INDEX_HTML = """
         <div class="bg-white border-b border-slate-200 py-8 px-6">
             <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                 <div>
-                    <p class="text-3xl font-extrabold text-slate-900">4.9 / 5.0</p>
+                    <p class="text-3xl font-extrabold text-slate-900">{{ site_stats['avg_rating'] }} / 5.0</p>
                     <p class="text-xs text-slate-500 font-medium uppercase mt-1">Client Satisfaction</p>
                 </div>
                 <div>
@@ -530,8 +542,8 @@ INDEX_HTML = """
                     <p class="text-xs text-slate-500 font-medium uppercase mt-1">On-Call Support</p>
                 </div>
                 <div>
-                    <p class="text-3xl font-extrabold text-slate-900">Uganda-Wide</p>
-                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">Regional Coverage</p>
+                    <p class="text-3xl font-extrabold text-slate-900">{{ site_stats['district_count'] }}+</p>
+                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">Districts Covered</p>
                 </div>
             </div>
         </div>
@@ -624,51 +636,51 @@ INDEX_HTML = """
             </div>
         </section>
 
-        <section id="reviews" class="py-16 bg-white">
-            <div class="max-w-5xl mx-auto px-6">
-                <div class="text-center max-w-2xl mx-auto mb-10">
-                    <h2 class="text-3xl font-bold text-slate-900">Client Testimonials</h2>
-                    <p class="text-slate-600 mt-3">Hear from families who trust Carehive Homecare for their loved ones.</p>
+        <section id="reviews" class="py-12 bg-white">
+            <div class="max-w-4xl mx-auto px-6">
+                <div class="text-center max-w-2xl mx-auto mb-6">
+                    <h2 class="text-2xl font-bold text-slate-900">Client Testimonials</h2>
+                    <p class="text-slate-600 text-sm mt-1.5">Hear from families who trust Carehive Homecare for their loved ones.</p>
                 </div>
 
-                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+                <div class="flex flex-wrap justify-center gap-3 mb-5">
                     {% for review in reviews %}
-                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-9 h-9 shrink-0 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col w-full sm:w-64">
+                        <div class="flex items-center gap-2.5 mb-1.5">
+                            <div class="w-7 h-7 shrink-0 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
                                 {{ review['client_name'][:1]|upper }}
                             </div>
                             <div class="min-w-0">
-                                <h4 class="font-bold text-slate-900 text-sm truncate">{{ review['client_name'] }}</h4>
-                                <div class="text-amber-400 text-xs">
+                                <h4 class="font-bold text-slate-900 text-xs truncate">{{ review['client_name'] }}</h4>
+                                <div class="text-amber-400 text-[10px]">
                                     {% for i in range(review['rating']) %}<i class="fa-solid fa-star"></i>{% endfor %}
                                 </div>
                             </div>
                         </div>
-                        <p class="text-slate-600 text-sm italic line-clamp-3">"{{ review['comment'] }}"</p>
+                        <p class="text-slate-600 text-xs italic line-clamp-3">"{{ review['comment'] }}"</p>
                     </div>
                     {% endfor %}
                 </div>
 
                 <div class="text-center">
-                    <button type="button" onclick="toggleReviewForm()" id="review-form-toggle" class="text-sm font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1.5">
+                    <button type="button" onclick="toggleReviewForm()" id="review-form-toggle" class="text-xs font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1.5">
                         <i class="fa-solid fa-pen-nib"></i> Share Your Experience
                     </button>
                 </div>
 
-                <div id="review-form-wrap" class="hidden mt-6">
-                    <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-md mx-auto shadow-sm">
-                        <form action="/review" method="POST" class="space-y-3">
-                            <input type="text" name="client_name" required placeholder="Your Name" class="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
-                            <select name="rating" class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white">
+                <div id="review-form-wrap" class="hidden mt-4">
+                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 max-w-sm mx-auto shadow-sm">
+                        <form action="/review" method="POST" class="space-y-2.5">
+                            <input type="text" name="client_name" required placeholder="Your Name" class="w-full p-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500">
+                            <select name="rating" class="w-full p-2 border border-slate-200 rounded-xl text-xs bg-white">
                                 <option value="5">5 Stars - Excellent</option>
                                 <option value="4">4 Stars - Very Good</option>
                                 <option value="3">3 Stars - Good</option>
                                 <option value="2">2 Stars - Fair</option>
                                 <option value="1">1 Star - Poor</option>
                             </select>
-                            <textarea name="comment" required placeholder="Describe your experience with our care team..." class="w-full p-2.5 border border-slate-200 rounded-xl text-sm h-20 focus:outline-none focus:border-blue-500"></textarea>
-                            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition text-sm">Submit Client Review</button>
+                            <textarea name="comment" required placeholder="Describe your experience with our care team..." class="w-full p-2 border border-slate-200 rounded-xl text-xs h-16 focus:outline-none focus:border-blue-500"></textarea>
+                            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded-xl transition text-xs">Submit Client Review</button>
                         </form>
                     </div>
                 </div>
@@ -696,12 +708,12 @@ INDEX_HTML = """
                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">WhatsApp</p>
                         <p class="font-bold text-white">+256 708 083 118</p>
                     </a>
-                    <a href="mailto:info@carehive.com" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
+                    <a href="mailto:carehivehomecare@gmail.com" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
                         <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center mx-auto mb-4 text-xl">
                             <i class="fa-solid fa-envelope"></i>
                         </div>
                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</p>
-                        <p class="font-bold text-white break-all">info@carehive.com</p>
+                        <p class="font-bold text-white break-all">carehivehomecare@gmail.com</p>
                     </a>
                     <div class="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
                         <div class="w-12 h-12 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center mx-auto mb-4 text-xl">
@@ -752,7 +764,7 @@ INDEX_HTML = """
                 <ul class="space-y-3 text-sm">
                     <li><a href="tel:+256753976912" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-phone text-blue-400"></i> +256 753 976 912</a></li>
                     <li><a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400"></i> +256 708 083 118</a></li>
-                    <li><a href="mailto:info@carehive.com" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400"></i> info@carehive.com</a></li>
+                    <li><a href="mailto:carehivehomecare@gmail.com" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400"></i> carehivehomecare@gmail.com</a></li>
                     <li class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-rose-400"></i> Kampala & Greater Uganda</li>
                 </ul>
             </div>
@@ -1448,6 +1460,7 @@ DASHBOARD_HTML = """
                                     <th class="p-4">Name</th>
                                     <th class="p-4">Email</th>
                                     <th class="p-4">Role</th>
+                                    <th class="p-4">On Duty</th>
                                     <th class="p-4">Permissions</th>
                                     <th class="p-4"></th>
                                 </tr>
@@ -1462,6 +1475,23 @@ DASHBOARD_HTML = """
                                         <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">Master Admin</span>
                                         {% else %}
                                         <span class="bg-purple-100 text-purple-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">{{ staff['role'] }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-4">
+                                        {% if staff['email'] == 'admin@carehive.com' %}
+                                        <span class="text-slate-300 italic text-xs">&mdash;</span>
+                                        {% else %}
+                                        <form action="/admin/toggle-duty" method="POST">
+                                            <input type="hidden" name="email" value="{{ staff['email'] }}">
+                                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                                <input type="checkbox" name="on_duty" onchange="this.form.requestSubmit()" {% if staff['on_duty'] %}checked{% endif %} class="rounded">
+                                                {% if staff['on_duty'] %}
+                                                <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-full font-semibold">On Duty</span>
+                                                {% else %}
+                                                <span class="text-slate-400 text-xs">Off duty</span>
+                                                {% endif %}
+                                            </label>
+                                        </form>
                                         {% endif %}
                                     </td>
                                     <td class="p-4 text-xs">
@@ -1919,10 +1949,22 @@ def get_uganda_geo():
 def home():
     conn = get_db_connection()
     reviews = conn.execute('SELECT * FROM reviews ORDER BY id DESC').fetchall()
+    avg_rating_row = conn.execute('SELECT AVG(rating) FROM reviews').fetchone()
+    on_duty_count = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE on_duty = 1 AND role IN ('admin', 'staff')"
+    ).fetchone()[0]
     conn.close()
+
     booking_reference = request.args.get('ref')
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    return render_template_string(INDEX_HTML, reviews=reviews, booking_reference=booking_reference, today=today)
+    site_stats = {
+        'avg_rating': round(avg_rating_row[0], 1) if avg_rating_row[0] else 5.0,
+        'district_count': len(uganda_geo.districts),
+        'on_duty_count': on_duty_count,
+    }
+    return render_template_string(
+        INDEX_HTML, reviews=reviews, booking_reference=booking_reference, today=today, site_stats=site_stats
+    )
 
 
 @app.route('/register', methods=['POST'])
@@ -2144,7 +2186,7 @@ def dashboard():
         cursor.execute('SELECT COUNT(*) FROM reviews')
         stats['reviews'] = cursor.fetchone()[0]
 
-        cursor.execute("SELECT name, email, role, permissions FROM users WHERE role IN ('admin', 'staff')")
+        cursor.execute("SELECT name, email, role, permissions, on_duty FROM users WHERE role IN ('admin', 'staff')")
         staff_rows = cursor.fetchall()
         staff_members = []
         for row in staff_rows:
@@ -2316,6 +2358,30 @@ def admin_update_permissions():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Updated permissions for {target_email}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/toggle-duty', methods=['POST'])
+def admin_toggle_duty():
+    """Marks a staff member on/off duty. No cap on how many can be on duty
+    at once — that's an operational policy call left entirely to the admin."""
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    target_email = request.form.get('email', '').strip().lower()
+    if target_email == 'admin@carehive.com':
+        return redirect(url_for('dashboard'))
+
+    on_duty = 1 if request.form.get('on_duty') == 'on' else 0
+
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE users SET on_duty = ? WHERE email = ? AND role IN ('admin', 'staff')",
+        (on_duty, target_email)
+    )
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Marked {target_email} as {'on duty' if on_duty else 'off duty'}")
     return redirect(url_for('dashboard'))
 
 
