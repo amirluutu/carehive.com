@@ -16,7 +16,8 @@ Features:
 """
 
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timezone
 from urllib.parse import quote
 from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
@@ -25,7 +26,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-carehive-key-2026')
-DB_NAME = 'carehive.db'
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # In-memory session tracking registry
 USER_STATUS = {}
@@ -199,11 +200,52 @@ def url_encode_path(s):
 # ---------------------------------------------------------
 # Database Helpers & Initialization
 # ---------------------------------------------------------
+class PGCursor:
+    """Wraps a psycopg2 cursor so the app's existing SQLite-style call sites
+    (using '?' placeholders and .lastrowid) work unchanged against Postgres."""
+    def __init__(self, cur):
+        self._cur = cur
+
+    def execute(self, query, params=()):
+        self._cur.execute(query.replace('?', '%s'), params)
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    @property
+    def lastrowid(self):
+        self._cur.execute("SELECT lastval()")
+        return self._cur.fetchone()['lastval']
+
+
+class PGConnection:
+    """Wraps a psycopg2 connection so conn.execute(...) / row['col'] access
+    (both SQLite conveniences the templates and routes rely on) keep working."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self):
+        return PGCursor(self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor))
+
+    def execute(self, query, params=()):
+        c = self.cursor()
+        c.execute(query, params)
+        return c
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('PRAGMA foreign_keys = ON;')
-    conn.row_factory = sqlite3.Row
-    return conn
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    return PGConnection(conn)
 
 
 def init_db():
@@ -215,13 +257,18 @@ def init_db():
             email TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             role TEXT NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            permissions TEXT,
+            date_of_birth TEXT,
+            phone TEXT,
+            status TEXT DEFAULT 'active',
+            on_duty INTEGER DEFAULT 0
         )
     ''')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             email TEXT NOT NULL,
             action TEXT NOT NULL,
             timestamp TEXT NOT NULL
@@ -230,7 +277,7 @@ def init_db():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS appointments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             full_name TEXT NOT NULL,
             phone TEXT NOT NULL,
             location TEXT NOT NULL,
@@ -239,13 +286,15 @@ def init_db():
             service TEXT NOT NULL,
             preferred_date TEXT NOT NULL,
             notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reference TEXT,
+            patient_dob TEXT
         )
     ''')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             client_name TEXT NOT NULL,
             rating INTEGER NOT NULL,
             comment TEXT NOT NULL,
@@ -253,29 +302,14 @@ def init_db():
         )
     ''')
 
-    cursor.execute("PRAGMA table_info(appointments)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'latitude' not in columns:
-        cursor.execute("ALTER TABLE appointments ADD COLUMN latitude REAL")
-    if 'longitude' not in columns:
-        cursor.execute("ALTER TABLE appointments ADD COLUMN longitude REAL")
-    if 'reference' not in columns:
-        cursor.execute("ALTER TABLE appointments ADD COLUMN reference TEXT")
-    if 'patient_dob' not in columns:
-        cursor.execute("ALTER TABLE appointments ADD COLUMN patient_dob TEXT")
-
-    cursor.execute("PRAGMA table_info(users)")
-    user_columns = [col[1] for col in cursor.fetchall()]
-    if 'permissions' not in user_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN permissions TEXT")
-    if 'date_of_birth' not in user_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN date_of_birth TEXT")
-    if 'phone' not in user_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
-    if 'status' not in user_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
-    if 'on_duty' not in user_columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN on_duty INTEGER DEFAULT 0")
+    # Idempotent for older/partially-migrated databases.
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reference TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_dob TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS on_duty INTEGER DEFAULT 0")
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
@@ -286,7 +320,7 @@ def init_db():
     # A valid Werkzeug hash carries its method prefix (e.g. "pbkdf2:sha256:...").
     # Older data seeded a bare SHA-256 digest, which check_password_hash cannot
     # verify, so the admin could never log in. Create or repair the account here.
-    admin_pass_ok = admin_row is not None and ':' in (admin_row[0] or '')
+    admin_pass_ok = admin_row is not None and ':' in (admin_row['password'] or '')
     if not admin_pass_ok:
         admin_pass = generate_password_hash("admin123")
         if admin_row is None:
@@ -300,8 +334,8 @@ def init_db():
                 (admin_pass, admin_email)
             )
 
-    cursor.execute('SELECT COUNT(*) FROM reviews')
-    if cursor.fetchone()[0] == 0:
+    cursor.execute('SELECT COUNT(*) AS cnt FROM reviews')
+    if cursor.fetchone()['cnt'] == 0:
         cursor.execute(
             'INSERT INTO reviews (client_name, rating, comment) VALUES (?, ?, ?)',
             ('Sarah K.', 5, 'Exceptional home care for my family in Kampala. Deeply compassionate nurses!')
@@ -1801,11 +1835,10 @@ FILES_HTML = """
 # ---------------------------------------------------------
 import random
 import string
+import io
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.pagesizes import A6
 from reportlab.graphics.barcode import code128
-
-TICKETS_DIR = os.path.join('static', 'tickets')
 
 
 def generate_reference(appointment_id: int) -> str:
@@ -1814,17 +1847,18 @@ def generate_reference(appointment_id: int) -> str:
     return f"CH-{appointment_id:05d}-{rand_suffix}"
 
 
-def build_ticket_pdf(appointment: dict) -> str:
+def build_ticket_pdf(appointment: dict) -> io.BytesIO:
     """
     Builds a PDF ticket containing the booking details and a Code128 barcode
-    encoding the reference number. Returns the relative file path.
+    encoding the reference number, entirely in memory (no disk writes — the
+    production filesystem is read-only, and the ticket is fully derivable
+    from the appointment record, so nothing needs to persist as a file).
     """
-    os.makedirs(TICKETS_DIR, exist_ok=True)
     reference = appointment['reference']
-    file_path = os.path.join(TICKETS_DIR, f"{reference}.pdf")
+    buffer = io.BytesIO()
 
     width, height = A6  # small ticket-sized page
-    c = pdfcanvas.Canvas(file_path, pagesize=A6)
+    c = pdfcanvas.Canvas(buffer, pagesize=A6)
 
     # Header band
     c.setFillColorRGB(0.09, 0.13, 0.17)
@@ -1870,15 +1904,14 @@ def build_ticket_pdf(appointment: dict) -> str:
 
     c.showPage()
     c.save()
-    return file_path
+    buffer.seek(0)
+    return buffer
 
 
 def create_booking_ticket(appointment_id: int, appointment_row) -> str:
-    """Generates the reference + PDF for a newly created appointment and saves it to the DB."""
-    appointment = dict(appointment_row)
+    """Generates and stores the reference for a newly created appointment.
+    The PDF itself is built on-demand when /ticket/<reference> is visited."""
     reference = generate_reference(appointment_id)
-    appointment['reference'] = reference
-    build_ticket_pdf(appointment)
 
     conn = get_db_connection()
     conn.execute('UPDATE appointments SET reference = ? WHERE id = ?', (reference, appointment_id))
@@ -1949,16 +1982,16 @@ def get_uganda_geo():
 def home():
     conn = get_db_connection()
     reviews = conn.execute('SELECT * FROM reviews ORDER BY id DESC').fetchall()
-    avg_rating_row = conn.execute('SELECT AVG(rating) FROM reviews').fetchone()
+    avg_rating_row = conn.execute('SELECT AVG(rating) AS avg_rating FROM reviews').fetchone()
     on_duty_count = conn.execute(
-        "SELECT COUNT(*) FROM users WHERE on_duty = 1 AND role IN ('admin', 'staff')"
-    ).fetchone()[0]
+        "SELECT COUNT(*) AS cnt FROM users WHERE on_duty = 1 AND role IN ('admin', 'staff')"
+    ).fetchone()['cnt']
     conn.close()
 
     booking_reference = request.args.get('ref')
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     site_stats = {
-        'avg_rating': round(avg_rating_row[0], 1) if avg_rating_row[0] else 5.0,
+        'avg_rating': round(avg_rating_row['avg_rating'], 1) if avg_rating_row['avg_rating'] else 5.0,
         'district_count': len(uganda_geo.districts),
         'on_duty_count': on_duty_count,
     }
@@ -2002,14 +2035,23 @@ def register_appointment():
 
 @app.route('/ticket/<reference>')
 def view_ticket(reference):
-    """Serves the generated PDF ticket for a booking by its reference number."""
+    """Builds and serves the PDF ticket for a booking on demand from its
+    stored appointment record, entirely in memory."""
     from flask import send_file, abort
     safe_reference = ''.join(c for c in reference if c.isalnum() or c in '-_')
-    file_path = os.path.join(TICKETS_DIR, f"{safe_reference}.pdf")
-    if not os.path.isfile(file_path):
+
+    conn = get_db_connection()
+    appointment_row = conn.execute(
+        'SELECT * FROM appointments WHERE reference = ?', (safe_reference,)
+    ).fetchone()
+    conn.close()
+
+    if not appointment_row:
         abort(404, description="Ticket not found.")
+
+    buffer = build_ticket_pdf(dict(appointment_row))
     as_attachment = request.args.get('download') == '1'
-    return send_file(file_path, mimetype='application/pdf', as_attachment=as_attachment,
+    return send_file(buffer, mimetype='application/pdf', as_attachment=as_attachment,
                       download_name=f"{safe_reference}.pdf")
 
 
@@ -2177,14 +2219,14 @@ def dashboard():
     pending_workers = []
 
     if session['user']['role'] == 'admin':
-        cursor.execute('SELECT COUNT(*) FROM appointments')
-        stats['appointments'] = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) AS cnt FROM appointments')
+        stats['appointments'] = cursor.fetchone()['cnt']
 
-        cursor.execute('SELECT COUNT(*) FROM users')
-        stats['users'] = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) AS cnt FROM users')
+        stats['users'] = cursor.fetchone()['cnt']
 
-        cursor.execute('SELECT COUNT(*) FROM reviews')
-        stats['reviews'] = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) AS cnt FROM reviews')
+        stats['reviews'] = cursor.fetchone()['cnt']
 
         cursor.execute("SELECT name, email, role, permissions, on_duty FROM users WHERE role IN ('admin', 'staff')")
         staff_rows = cursor.fetchall()
@@ -2203,53 +2245,53 @@ def dashboard():
         cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
         logs = [dict(row) for row in cursor.fetchall()]
 
-        cursor.execute("SELECT preferred_date, COUNT(*) FROM appointments GROUP BY preferred_date ORDER BY preferred_date ASC")
+        cursor.execute("SELECT preferred_date, COUNT(*) AS cnt FROM appointments GROUP BY preferred_date ORDER BY preferred_date ASC")
         trend_rows = cursor.fetchall()
         chart_data['appointments_trend'] = {
-            'labels': [row[0] for row in trend_rows],
-            'values': [row[1] for row in trend_rows]
+            'labels': [row['preferred_date'] for row in trend_rows],
+            'values': [row['cnt'] for row in trend_rows]
         }
 
-        cursor.execute("SELECT rating, COUNT(*) FROM reviews GROUP BY rating ORDER BY rating DESC")
+        cursor.execute("SELECT rating, COUNT(*) AS cnt FROM reviews GROUP BY rating ORDER BY rating DESC")
         rating_rows = cursor.fetchall()
         chart_data['reviews_by_rating'] = {
-            'labels': [str(row[0]) for row in rating_rows],
-            'values': [row[1] for row in rating_rows]
+            'labels': [str(row['rating']) for row in rating_rows],
+            'values': [row['cnt'] for row in rating_rows]
         }
-        
-        cursor.execute("SELECT AVG(rating) FROM reviews")
-        avg_r = cursor.fetchone()[0]
+
+        cursor.execute("SELECT AVG(rating) AS avg_rating FROM reviews")
+        avg_r = cursor.fetchone()['avg_rating']
         chart_data['avg_rating'] = round(avg_r, 1) if avg_r else 5.0
 
-        cursor.execute("SELECT service, COUNT(*) FROM appointments GROUP BY service ORDER BY COUNT(*) DESC")
+        cursor.execute("SELECT service, COUNT(*) AS cnt FROM appointments GROUP BY service ORDER BY COUNT(*) DESC")
         service_rows = cursor.fetchall()
         chart_data['appointments_by_service'] = {
-            'labels': [row[0] for row in service_rows],
-            'values': [row[1] for row in service_rows]
+            'labels': [row['service'] for row in service_rows],
+            'values': [row['cnt'] for row in service_rows]
         }
 
         cursor.execute("SELECT location FROM appointments")
         loc_rows = cursor.fetchall()
         loc_counts = {}
         for row in loc_rows:
-            loc_str = row[0] or ''
+            loc_str = row['location'] or ''
             parts = [p.strip() for p in loc_str.split(',')]
             district = parts[-1] if parts else 'Unknown'
             if 'Live GPS Location' in district or '(' in district:
                 district = 'GPS Pinned Location'
             loc_counts[district] = loc_counts.get(district, 0) + 1
-        
+
         sorted_locs = sorted(loc_counts.items(), key=lambda x: x[1], reverse=True)[:6]
         chart_data['appointments_by_location'] = {
             'labels': [item[0] for item in sorted_locs],
             'values': [item[1] for item in sorted_locs]
         }
 
-        cursor.execute("SELECT role, COUNT(*) FROM users GROUP BY role")
+        cursor.execute("SELECT role, COUNT(*) AS cnt FROM users GROUP BY role")
         role_rows = cursor.fetchall()
         chart_data['users_by_role'] = {
-            'labels': [row[0].title() for row in role_rows],
-            'values': [row[1] for row in role_rows]
+            'labels': [row['role'].title() for row in role_rows],
+            'values': [row['cnt'] for row in role_rows]
         }
 
     else:

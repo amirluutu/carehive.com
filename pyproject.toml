@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Carehive Homecare Flask App"
 dependencies = [
     "flask",
+    "reportlab",
+    "psycopg2-binary",
 ]
 
 [tool.vercel]
