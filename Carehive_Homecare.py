@@ -386,47 +386,6 @@ INDEX_HTML = """
         </div>
     </div>
 
-    {% if not session.get('user') %}
-    <div id="disappearing-dashboard-banner" class="bg-gradient-to-r from-blue-900 via-blue-800 to-slate-900 text-white border-b border-blue-700 shadow-md transition-all duration-500 overflow-hidden">
-        <div class="max-w-7xl mx-auto px-6 py-2.5 flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <span class="bg-amber-400 text-slate-950 p-1.5 rounded-lg font-bold text-xs shadow-sm flex items-center gap-1">
-                    <i class="fa-solid fa-gauge-high"></i> DASHBOARD
-                </span>
-                <p class="text-xs md:text-sm font-medium">
-                    Access your personalized Carehive Portal to track healthcare appointments and manage details!
-                </p>
-            </div>
-            <div class="flex items-center space-x-3">
-                <a href="/login" class="bg-white text-blue-950 hover:bg-slate-100 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm">
-                    <i class="fa-solid fa-right-to-bracket mr-1"></i> Log In
-                </a>
-                <a href="/signup" class="bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm">
-                    <i class="fa-solid fa-user-plus mr-1"></i> Sign Up
-                </a>
-                <button onclick="dismissDashboardBanner()" class="text-blue-200 hover:text-white p-1 ml-2 transition focus:outline-none" title="Dismiss dashboard banner">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-    <script>
-        if (localStorage.getItem('hideDashboardBanner') === 'true') {
-            const banner = document.getElementById('disappearing-dashboard-banner');
-            if (banner) banner.style.display = 'none';
-        }
-        function dismissDashboardBanner() {
-            const banner = document.getElementById('disappearing-dashboard-banner');
-            if (banner) {
-                banner.style.opacity = '0';
-                banner.style.maxHeight = '0px';
-                setTimeout(() => banner.style.display = 'none', 300);
-            }
-            localStorage.setItem('hideDashboardBanner', 'true');
-        }
-    </script>
-    {% endif %}
-
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
             <a href="/" class="flex items-center gap-3">
