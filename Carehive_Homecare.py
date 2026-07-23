@@ -261,11 +261,19 @@ def init_db():
         cursor.execute("ALTER TABLE appointments ADD COLUMN longitude REAL")
     if 'reference' not in columns:
         cursor.execute("ALTER TABLE appointments ADD COLUMN reference TEXT")
+    if 'patient_dob' not in columns:
+        cursor.execute("ALTER TABLE appointments ADD COLUMN patient_dob TEXT")
 
     cursor.execute("PRAGMA table_info(users)")
     user_columns = [col[1] for col in cursor.fetchall()]
     if 'permissions' not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN permissions TEXT")
+    if 'date_of_birth' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN date_of_birth TEXT")
+    if 'phone' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+    if 'status' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
@@ -436,7 +444,7 @@ INDEX_HTML = """
     <main>
         <section class="relative py-16 lg:py-24 overflow-hidden bg-slate-900 text-white">
             <div class="absolute inset-0 z-0">
-                <img src="https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80" alt="" class="w-full h-full object-cover opacity-25">
+                <img src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-25" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
                 <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-900/70"></div>
             </div>
             <div class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
@@ -756,35 +764,69 @@ INDEX_HTML = """
     </footer>
 
     <section id="register-container" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4 flex items-center justify-center">
-        <div class="max-w-3xl w-full bg-white p-6 md:p-8 rounded-3xl shadow-2xl border border-slate-200 relative my-auto max-h-[90vh] overflow-y-auto">
-            <button onclick="closeBookingForm()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xl p-2"><i class="fa-solid fa-xmark"></i></button>
-            <h2 class="text-2xl font-bold text-slate-900 mb-1 text-center">Book a Home Care Appointment</h2>
-            <p class="text-center text-slate-500 text-xs mb-6">Enter your valid contact details and location in Uganda.</p>
-            
-            <form action="/register" method="POST" class="space-y-4" onsubmit="return validateForm()">
+        <div id="register-modal-card" class="max-w-3xl w-full bg-white rounded-3xl shadow-2xl border border-slate-200 relative my-auto max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0">
+            <div class="relative bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 rounded-t-3xl px-6 md:px-8 py-6 text-white overflow-hidden">
+                <div class="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full"></div>
+                <div class="absolute -bottom-10 -left-6 w-28 h-28 bg-white/10 rounded-full"></div>
+                <button onclick="closeBookingForm()" class="absolute top-4 right-4 text-white/80 hover:text-white text-xl p-2 z-10"><i class="fa-solid fa-xmark"></i></button>
+                <div class="relative z-10 flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/15 border border-white/30 flex items-center justify-center text-2xl">
+                        <i class="fa-solid fa-hand-holding-heart"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl md:text-2xl font-extrabold">Let's Get You Compassionate Care</h2>
+                        <p class="text-blue-100 text-xs mt-0.5">Takes under a minute — a caregiver will be matched to you shortly after.</p>
+                    </div>
+                </div>
+            </div>
+
+            <form action="/register" method="POST" class="space-y-4 p-6 md:p-8" onsubmit="return validateForm()">
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
                 <input type="hidden" id="location" name="location">
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
-                    <input type="text" name="full_name" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
-                </div>
                 <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Your Full Name</label>
+                        <input type="text" name="full_name" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valid Phone Number</label>
                         <input type="tel" name="phone" required placeholder="+256 700 000 000" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Service Required</label>
-                        <select id="form-service-select" name="service" required class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
-                            <option value="Blood Pressure Check">Blood Pressure Check</option>
-                            <option value="Wound Dressing">Wound Dressing</option>
-                            <option value="Elderly Care">Elderly Care</option>
-                            <option value="Post Surgery Care">Post Surgery Care</option>
-                            <option value="Baby Care">Baby & Infant Care</option>
-                        </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Date of Birth</label>
+                    <input type="date" name="patient_dob" required max="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    <p class="text-[11px] text-slate-400 mt-1">The person receiving care — helps us match the right caregiver.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-2">Service Required</label>
+                    <div id="service-picker" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <button type="button" data-service="Blood Pressure Check" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-heart-pulse text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Blood Pressure Check</span>
+                        </button>
+                        <button type="button" data-service="Wound Dressing" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-band-aid text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Wound Dressing</span>
+                        </button>
+                        <button type="button" data-service="Elderly Care" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-person-cane text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Elderly Care</span>
+                        </button>
+                        <button type="button" data-service="Post Surgery Care" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-user-doctor text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Post Surgery Care</span>
+                        </button>
+                        <button type="button" data-service="Baby Care" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-baby text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Baby & Infant Care</span>
+                        </button>
                     </div>
+                    <input type="hidden" id="form-service-select" name="service" required>
                 </div>
 
                 <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
@@ -834,17 +876,22 @@ INDEX_HTML = """
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Preferred Date</label>
-                    <input type="date" name="preferred_date" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1"><i class="fa-solid fa-calendar-check text-blue-600 mr-1"></i> Preferred Visit Date</label>
+                    <input type="date" name="preferred_date" required min="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Additional Notes</label>
-                    <textarea name="notes" placeholder="Notes..." class="w-full p-3 border border-slate-200 rounded-xl text-sm h-20"></textarea>
+                    <textarea name="notes" placeholder="Anything our care team should know..." class="w-full p-3 border border-slate-200 rounded-xl text-sm h-20"></textarea>
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button type="button" onclick="closeBookingForm()" class="w-1/3 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-sm">Cancel</button>
-                    <button type="submit" class="w-2/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm">Submit Request</button>
+                    <button type="submit" class="w-2/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i> Confirm My Booking
+                    </button>
                 </div>
+                <p class="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-lock text-slate-300"></i> Your details are kept private and shared only with your assigned caregiver.
+                </p>
             </form>
         </div>
     </section>
@@ -927,9 +974,32 @@ INDEX_HTML = """
             manualWrap.classList.toggle('hidden', !(needDistrict || needArea));
         }
 
+        function selectService(serviceOrEl) {
+            const picker = document.getElementById('service-picker');
+            const value = typeof serviceOrEl === 'string' ? serviceOrEl : serviceOrEl.dataset.service;
+            picker.querySelectorAll('.service-card').forEach(btn => {
+                const active = btn.dataset.service === value;
+                btn.classList.toggle('border-blue-600', active);
+                btn.classList.toggle('bg-blue-50', active);
+                btn.classList.toggle('text-blue-700', active);
+                btn.classList.toggle('shadow-md', active);
+                btn.classList.toggle('border-slate-200', !active);
+                btn.classList.toggle('text-slate-600', !active);
+                btn.classList.toggle('bg-white', !active);
+            });
+            document.getElementById('form-service-select').value = value;
+        }
+        selectService('Blood Pressure Check');
+
         function openBookingForm(service = null, district = null) {
-            document.getElementById('register-container').classList.remove('hidden');
-            if (service) document.getElementById('form-service-select').value = service;
+            const container = document.getElementById('register-container');
+            const card = document.getElementById('register-modal-card');
+            container.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                card.classList.remove('scale-95', 'opacity-0');
+                card.classList.add('scale-100', 'opacity-100');
+            });
+            selectService(service || 'Blood Pressure Check');
             if (district) {
                 document.getElementById('district-select').value = district;
                 onDistrictChange();
@@ -937,7 +1007,11 @@ INDEX_HTML = """
         }
 
         function closeBookingForm() {
-            document.getElementById('register-container').classList.add('hidden');
+            const container = document.getElementById('register-container');
+            const card = document.getElementById('register-modal-card');
+            card.classList.add('scale-95', 'opacity-0');
+            card.classList.remove('scale-100', 'opacity-100');
+            setTimeout(() => container.classList.add('hidden'), 200);
         }
 
         function toggleReviewForm() {
@@ -1048,6 +1122,10 @@ SIGNUP_HTML = COMMON_HEAD + """
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
                     <input type="text" name="fullname" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Date of Birth</label>
+                    <input type="date" name="date_of_birth" required max="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valid Email Address</label>
@@ -1307,22 +1385,56 @@ DASHBOARD_HTML = """
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Create Worker Account</h3>
+                    <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Register New Worker</h3>
+                    <p class="text-xs text-slate-500 mb-4">Step 1 of 2 — this just registers their account. They won't have any access until you activate them below and assign a role.</p>
                     <form action="/admin/create-worker" method="POST" class="space-y-4">
-                        <div class="grid md:grid-cols-3 gap-4">
+                        <div class="grid md:grid-cols-2 gap-4">
                             <input type="text" name="fullname" required placeholder="Worker Full Name" class="p-3 border border-slate-200 rounded-xl text-sm">
+                            <input type="tel" name="phone" placeholder="Phone Number" class="p-3 border border-slate-200 rounded-xl text-sm">
                             <input type="email" name="email" required placeholder="Worker Email" class="p-3 border border-slate-200 rounded-xl text-sm">
                             <input type="password" name="password" required placeholder="Default Password" class="p-3 border border-slate-200 rounded-xl text-sm">
                         </div>
-                        <div class="flex flex-wrap gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <span class="text-xs font-bold uppercase text-slate-500 w-full mb-1">Permissions for this account</span>
-                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_appointments" checked class="rounded"> View bookings</label>
-                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_create_bookings" checked class="rounded"> Create bookings</label>
-                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_files" checked class="rounded"> View files / PDFs</label>
-                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_manage_staff" class="rounded"> Manage staff accounts</label>
-                        </div>
-                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Add Care Worker</button>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Register Worker (Pending Approval)</button>
                     </form>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+                    <div class="p-6 border-b border-amber-100 bg-amber-50">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-hourglass-half text-amber-500 mr-2"></i> Pending Worker Registrations</h3>
+                        <p class="text-xs text-slate-500 mt-1">Step 2 — pick a role and permissions to activate them, or reject the registration.</p>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        {% for worker in pending_workers %}
+                        <div class="p-6 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p class="font-bold text-slate-900">{{ worker['name'] }}</p>
+                                    <p class="text-xs text-slate-500">{{ worker['email'] }}{% if worker['phone'] %} &middot; {{ worker['phone'] }}{% endif %}</p>
+                                </div>
+                                <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">Pending</span>
+                            </div>
+                            <form action="/admin/activate-worker" method="POST" class="flex flex-wrap gap-4 items-center bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                <input type="hidden" name="email" value="{{ worker['email'] }}">
+                                <span class="text-xs font-bold uppercase text-slate-500 w-full -mb-1">Assign Permissions</span>
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_appointments" checked class="rounded"> View bookings</label>
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_create_bookings" checked class="rounded"> Create bookings</label>
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_files" checked class="rounded"> View files / PDFs</label>
+                                <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_manage_staff" class="rounded"> Manage staff accounts</label>
+                                <div class="flex gap-2 ml-auto">
+                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs">
+                                        <i class="fa-solid fa-check mr-1"></i> Activate as Staff
+                                    </button>
+                                </div>
+                            </form>
+                            <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Reject and remove this registration?');">
+                                <input type="hidden" name="email" value="{{ worker['email'] }}">
+                                <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Reject & Remove</button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <p class="p-6 text-sm text-slate-400 text-center">No pending worker registrations.</p>
+                        {% endfor %}
+                    </div>
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1712,6 +1824,8 @@ def build_ticket_pdf(appointment: dict) -> str:
     draw_line("Service:", appointment['service'])
     draw_line("Date:", appointment['preferred_date'])
     draw_line("Location:", appointment['location'])
+    if appointment.get('patient_dob'):
+        draw_line("Patient DOB:", appointment['patient_dob'])
     if appointment.get('notes'):
         draw_line("Notes:", appointment['notes'][:60])
 
@@ -1807,7 +1921,8 @@ def home():
     reviews = conn.execute('SELECT * FROM reviews ORDER BY id DESC').fetchall()
     conn.close()
     booking_reference = request.args.get('ref')
-    return render_template_string(INDEX_HTML, reviews=reviews, booking_reference=booking_reference)
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    return render_template_string(INDEX_HTML, reviews=reviews, booking_reference=booking_reference, today=today)
 
 
 @app.route('/register', methods=['POST'])
@@ -1818,7 +1933,7 @@ def register_appointment():
 
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO appointments (full_name, phone, service, location, latitude, longitude, preferred_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO appointments (full_name, phone, service, location, latitude, longitude, preferred_date, notes, patient_dob) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             request.form.get('full_name', '').strip(),
             request.form.get('phone', '').strip(),
@@ -1827,7 +1942,8 @@ def register_appointment():
             float(lat) if lat else None,
             float(lng) if lng else None,
             request.form.get('preferred_date', '').strip(),
-            request.form.get('notes', '').strip()
+            request.form.get('notes', '').strip(),
+            request.form.get('patient_dob', '').strip()
         )
     )
     appointment_id = cursor.lastrowid
@@ -1893,25 +2009,31 @@ def add_review():
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         fullname = request.form.get('fullname', '').strip()
         password = request.form.get('password', '')
+        date_of_birth = request.form.get('date_of_birth', '').strip()
 
-        if not email or not fullname or not password:
-            return render_template_string(SIGNUP_HTML, error="All fields are required.")
+        if not email or not fullname or not password or not date_of_birth:
+            return render_template_string(SIGNUP_HTML, error="All fields are required.", today=today)
+
+        if date_of_birth > today:
+            return render_template_string(SIGNUP_HTML, error="Date of birth cannot be in the future.", today=today)
 
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
         if cursor.fetchone():
             conn.close()
-            return render_template_string(SIGNUP_HTML, error="Email already registered.")
+            return render_template_string(SIGNUP_HTML, error="Email already registered.", today=today)
 
         hashed_pw = generate_password_hash(password)
         cursor.execute(
-            'INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
-            (email, fullname, 'client', hashed_pw)
+            'INSERT INTO users (email, name, role, password, date_of_birth) VALUES (?, ?, ?, ?, ?)',
+            (email, fullname, 'client', hashed_pw, date_of_birth)
         )
         conn.commit()
         conn.close()
@@ -1921,7 +2043,7 @@ def signup():
         USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
         return redirect(url_for('dashboard'))
 
-    return render_template_string(SIGNUP_HTML)
+    return render_template_string(SIGNUP_HTML, today=today)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1937,6 +2059,9 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password'], password):
+            if user['role'] == 'pending':
+                return render_template_string(LOGIN_HTML, error="Your registration is pending admin approval. Please check back once you've been activated.")
+
             session['user'] = {'email': user['email'], 'fullname': user['name'], 'role': user['role']}
             USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
             log_activity(email, f"Logged in as {user['role']}")
@@ -2007,6 +2132,7 @@ def dashboard():
     chart_data = {}
     logs = []
     staff_members = []
+    pending_workers = []
 
     if session['user']['role'] == 'admin':
         cursor.execute('SELECT COUNT(*) FROM appointments')
@@ -2028,6 +2154,9 @@ def dashboard():
             except (ValueError, TypeError):
                 item['permissions'] = dict(DEFAULT_STAFF_PERMISSIONS)
             staff_members.append(item)
+
+        cursor.execute("SELECT name, email, phone FROM users WHERE role = 'pending' ORDER BY email")
+        pending_workers = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
         logs = [dict(row) for row in cursor.fetchall()]
@@ -2092,6 +2221,7 @@ def dashboard():
         chart_data=chart_data,
         logs=logs,
         staff_members=staff_members,
+        pending_workers=pending_workers,
         activity=activity,
         perms=perms
     )
@@ -2110,19 +2240,16 @@ def admin_appointments():
 
 @app.route('/admin/create-worker', methods=['POST'])
 def admin_create_worker():
+    """Step 1: registers a worker into the system with no role or permissions
+    yet. They land in the 'pending' pool until an admin activates them via
+    /admin/activate-worker."""
     if 'user' not in session or session['user']['role'] != 'admin':
         return redirect(url_for('login'))
 
     fullname = request.form.get('fullname', '').strip()
     email = request.form.get('email', '').strip().lower()
+    phone = request.form.get('phone', '').strip()
     password = request.form.get('password', '').strip()
-
-    permissions = {
-        "view_appointments": request.form.get('perm_view_appointments') == 'on',
-        "create_bookings": request.form.get('perm_create_bookings') == 'on',
-        "view_files": request.form.get('perm_view_files') == 'on',
-        "manage_staff": request.form.get('perm_manage_staff') == 'on',
-    }
 
     if fullname and email and password:
         conn = get_db_connection()
@@ -2131,13 +2258,40 @@ def admin_create_worker():
         if not cursor.fetchone():
             hashed_pw = generate_password_hash(password)
             cursor.execute(
-                'INSERT INTO users (email, name, role, password, permissions) VALUES (?, ?, ?, ?, ?)',
-                (email, fullname, 'staff', hashed_pw, json.dumps(permissions))
+                'INSERT INTO users (email, name, role, password, phone, status) VALUES (?, ?, ?, ?, ?, ?)',
+                (email, fullname, 'pending', hashed_pw, phone, 'pending')
             )
             conn.commit()
-            log_activity(session['user']['email'], f"Created staff account for {email}")
+            log_activity(session['user']['email'], f"Registered new worker applicant: {email}")
         conn.close()
 
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/activate-worker', methods=['POST'])
+def admin_activate_worker():
+    """Step 2: picks a pending worker registration, assigns permissions, and
+    makes them an active staff member."""
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    target_email = request.form.get('email', '').strip().lower()
+
+    permissions = {
+        "view_appointments": request.form.get('perm_view_appointments') == 'on',
+        "create_bookings": request.form.get('perm_create_bookings') == 'on',
+        "view_files": request.form.get('perm_view_files') == 'on',
+        "manage_staff": request.form.get('perm_manage_staff') == 'on',
+    }
+
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE users SET role = 'staff', status = 'active', permissions = ? WHERE email = ? AND role = 'pending'",
+        (json.dumps(permissions), target_email)
+    )
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Activated worker {target_email} as staff")
     return redirect(url_for('dashboard'))
 
 
