@@ -389,7 +389,7 @@ INDEX_HTML = """
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
             <a href="/" class="flex items-center gap-3">
-                <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
+                <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
                 <div>
                     <span class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight block">Care<span class="text-blue-600">Hive</span></span>
                     <span class="text-[10px] text-blue-700 font-bold tracking-wider uppercase block -mt-1">Homecare Limited</span>
@@ -405,16 +405,10 @@ INDEX_HTML = """
             </nav>
 
             <div class="flex items-center gap-3">
-                {% if session.get('user') %}
-                    <a href="/dashboard" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
-                        Dashboard
-                    </a>
-                {% else %}
-                    <a href="/login" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">Log In</a>
-                    <a href="/signup" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
-                        Get Started
-                    </a>
-                {% endif %}
+                <a href="/login" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">Log In</a>
+                <a href="/signup" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
+                    Sign Up
+                </a>
             </div>
         </div>
     </header>
@@ -551,7 +545,7 @@ INDEX_HTML = """
                 <div class="grid md:grid-cols-3 gap-8">
                     <div class="rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden hover:shadow-lg transition-all flex flex-col justify-between">
                         <div>
-                            <img src="/static/images/{{ 'nursing care.jpeg'|url_encode_path }}" alt="Nursing Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80';">
+                            <img src="/static/images/{{ 'nursing-care.jpeg'|url_encode_path }}" alt="Nursing Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80';">
                             <div class="p-6">
                                 <h3 class="text-xl font-bold text-slate-900 mb-2">Professional Nursing Care</h3>
                                 <p class="text-slate-600 text-sm leading-relaxed">
@@ -585,7 +579,7 @@ INDEX_HTML = """
 
                     <div class="rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden hover:shadow-lg transition-all flex flex-col justify-between">
                         <div>
-                            <img src="/static/images/{{ 'baby care.jpeg'|url_encode_path }}" alt="Baby Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=600&q=80';">
+                            <img src="/static/images/{{ 'baby-care.jpeg'|url_encode_path }}" alt="Baby Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=600&q=80';">
                             <div class="p-6">
                                 <h3 class="text-xl font-bold text-slate-900 mb-2">Pediatric & Baby Care</h3>
                                 <p class="text-slate-600 text-sm leading-relaxed">
@@ -1242,7 +1236,7 @@ DASHBOARD_HTML = """
                     <button onclick="toggleSidebar(false)" class="md:hidden absolute top-3 right-3 text-slate-400 hover:text-white p-1" aria-label="Close menu">
                         <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
-                    <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" class="w-20 h-20 rounded-xl object-contain bg-white p-1 border" onerror="this.src='https://placehold.co/100x100?text=CH';">
+                    <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" class="w-20 h-20 rounded-xl object-contain bg-white p-1 border" onerror="this.src='https://placehold.co/100x100?text=CH';">
                     <div>
                         <h2 class="font-black text-white text-lg tracking-wide">CAREHIVE</h2>
                         <span class="text-xs text-blue-400 font-bold uppercase">Portal Dashboard</span>
