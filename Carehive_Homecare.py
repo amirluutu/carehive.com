@@ -1,30 +1,74 @@
 """
-Carehive Homecare Limited — Complete Flask Application
+Carehive Homecare Limited — Unified Complete Flask Application (Production-Ready)
 
 Features:
-  - Public marketing site with Care UK-inspired Hero Care Finder & Trust Bar
+  - Public marketing site with Hero Care Finder & Trust Bar
   - Integrated Uganda Geographical Taxonomy Registry with API & Cascading Dropdowns
   - Live GPS Location capture (with dropdown override) and Google Maps sharing
-  - Enlarged logo & centered branding
   - Disappearing Dashboard Callout Banner prompting user Login/Signup
   - Appointment registration with valid contact verification (`/register`)
   - Client review submission (`/review`)
   - User authentication & portal (`/signup`, `/login`, `/logout`)
   - User Account Settings (`/settings`)
   - User activity log tracking & status monitoring
-  - Enhanced User & Admin Dashboards (`/dashboard`)
+  - Enhanced User & Admin Dashboards with Chart.js analytics (`/dashboard`)
   - Admin worker creation (`/admin/create-worker`) & appointments manager (`/admin`)
 """
 
+import os
 import sqlite3
 from datetime import datetime, timezone
 from urllib.parse import quote
 from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 app = Flask(__name__)
-app.secret_key = 'super-secret-carehive-key'
+app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-carehive-key-2026')
 DB_NAME = 'carehive.db'
+
+# In-memory session tracking registry
+USER_STATUS = {}
+
+
+def log_activity(email: str, action: str):
+    """Logs user actions into the persistent database audit log."""
+    try:
+        conn = get_db_connection()
+        conn.execute(
+            'INSERT INTO logs (email, action, timestamp) VALUES (?, ?, ?)',
+            (email, action, datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Logging error: {e}")
+
+
+def get_user_activity_info(email: str):
+    """Retrieves or calculates user session uptime and activity status."""
+    now = datetime.now(timezone.utc)
+    if email not in USER_STATUS:
+        USER_STATUS[email] = {
+            'login_time': now,
+            'last_active': now,
+            'status': 'Active Online'
+        }
+    
+    data = USER_STATUS[email]
+    if data['status'] == 'Active Online':
+        delta = now - data['login_time']
+        hours, remainder = divmod(int(delta.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        duration_str = f"{hours}h {minutes}m {seconds}s"
+    else:
+        duration_str = "Session Ended"
+
+    return {
+        'status': data['status'],
+        'duration': duration_str,
+        'last_active': data['last_active'].strftime('%H:%M:%S UTC')
+    }
 
 
 # ==========================================
@@ -38,7 +82,6 @@ class Village:
 
     def __repr__(self):
         return f"Village({self.name})"
-
 
 class SubCounty:
     """Represents a Sub-county, Town Council, or Division (Level 4)."""
@@ -54,7 +97,6 @@ class SubCounty:
     def __repr__(self):
         return f"SubCounty({self.name}, Villages: {list(self.villages.keys())})"
 
-
 class County:
     """Represents a County, Constituency, or Municipality (Level 3)."""
     def __init__(self, name: str):
@@ -68,7 +110,6 @@ class County:
 
     def __repr__(self):
         return f"County({self.name})"
-
 
 class District:
     """Represents a District or City (Level 2)."""
@@ -85,14 +126,12 @@ class District:
     def __repr__(self):
         return f"District({self.name}, Region: {self.region})"
 
-
 class UgandaGeographyRegistry:
-    """Main registry to manage the entire geographical structure of Uganda."""
+    """Main registry to manage the geographical structure of Uganda."""
     def __init__(self):
         self.districts = {}
 
     def add_location(self, region: str, district_name: str, county_name: str, sub_county_name: str, village_name: str):
-        """Helper to quickly inject a full localized chain."""
         if district_name not in self.districts:
             self.districts[district_name] = District(district_name, region)
         
@@ -101,25 +140,11 @@ class UgandaGeographyRegistry:
         sub_county = county.add_sub_county(sub_county_name)
         sub_county.add_village(village_name)
 
-    def get_district_details(self, district_name: str):
-        """Fetches all nested information for a specific district."""
-        district = self.districts.get(district_name)
-        if not district:
-            return f"District '{district_name}' not found."
-        
-        data = {
-            "District": district.name,
-            "Region": district.region,
-            "Counties/Divisions": {}
-        }
-        for c_name, county in district.counties.items():
-            data["Counties/Divisions"][c_name] = {}
-            for s_name, sub_county in county.sub_counties.items():
-                data["Counties/Divisions"][c_name][s_name] = list(sub_county.villages.keys())
-        return data
+    def add_district(self, region: str, district_name: str):
+        if district_name not in self.districts:
+            self.districts[district_name] = District(district_name, region)
 
     def to_dict(self):
-        """Exports taxonomy data as a dict for frontend API consumption."""
         result = {}
         for d_name, district in self.districts.items():
             locations = []
@@ -132,16 +157,39 @@ class UgandaGeographyRegistry:
             }
         return result
 
-
-# Instantiate global registry and add core administrative data
+# Instantiate global registry and add administrative data across Uganda regions
 uganda_geo = UgandaGeographyRegistry()
+# Central
 uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Ssabagabo", "Kanyanya")
 uganda_geo.add_location("Central", "Kampala", "Central Division", "Nakasero", "Nakasero I")
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Town", "Kira")
+# Western
 uganda_geo.add_location("Western", "Mbarara", "Kashari County", "Bubaare", "Kashaka")
+uganda_geo.add_location("Western", "Fort Portal", "Central Division", "Bazarwa", "Kabarole")
+# Eastern
+uganda_geo.add_location("Eastern", "Jinja", "Jinja North", "Bugembe", "Budondo")
+# Northern
+uganda_geo.add_location("Northern", "Gulu", "Laroo Division", "Pece", "Layibi")
+
+# Central Region Districts
+for d in ["Bukomansimbi", "Butambala", "Gomba", "Kalangala", "Kalungu", "Kyotera", "Lwengo", "Lyantonde", "Masaka", "Masaka City", "Mpigi", "Rakai", "Sembabule", "Buikwe", "Buvuma", "Kassanda", "Kayunga", "Kiboga", "Kyankwanzi", "Luwero", "Mityana", "Mubende", "Mukono", "Nakaseke", "Nakasongola"]:
+    uganda_geo.add_district("Central", d)
+
+# Eastern Region Districts
+for d in ["Bugiri", "Bugweri", "Buyende", "Iganga", "Jinja City", "Kaliro", "Kamuli", "Luuka", "Mayuge", "Namayingo", "Namutumba", "Budaka", "Busia", "Butaleja", "Butebo", "Kibuku", "Pallisa", "Tororo", "Bududa", "Bukwo", "Bulambuli", "Kapchorwa", "Kween", "Manafwa", "Mbale", "Mbale City", "Namisindwa", "Sironko", "Amuria", "Bukedea", "Kaberamaido", "Kalaki", "Kapelebyong", "Katakwi", "Kumi", "Ngora", "Serere", "Soroti", "Soroti City"]:
+    uganda_geo.add_district("Eastern", d)
+
+# Northern Region Districts
+for d in ["Abim", "Amudat", "Kaabong", "Karenga", "Kotido", "Moroto", "Nabilatuk", "Nakapiripirit", "Napak", "Alebtong", "Amolatar", "Apac", "Dokolo", "Kole", "Kwania", "Lira", "Lira City", "Otuke", "Oyam", "Agago", "Amuru", "Gulu City", "Kitgum", "Lamwo", "Nwoya", "Omoro", "Pader", "Adjumani", "Arua", "Arua City", "Koboko", "Madi-Okollo", "Maracha", "Moyo", "Nebbi", "Obongi", "Pakwach", "Terego", "Yumbe", "Zombo"]:
+    uganda_geo.add_district("Northern", d)
+
+# Western Region Districts
+for d in ["Buliisa", "Hoima", "Hoima City", "Kagadi", "Kakumiro", "Kibaale", "Kikuube", "Kiryandongo", "Masindi", "Bundibugyo", "Bunyangabu", "Fort Portal City", "Kabarole", "Kamwenge", "Kasese", "Kitagwenda", "Kyegegwa", "Kyenjojo", "Ntoroko", "Buhweju", "Bushenyi", "Ibanda", "Isingiro", "Kazo", "Kiruhura", "Mbarara City", "Mitooma", "Ntungamo", "Rubirizi", "Rwampara", "Sheema", "Kabale", "Kanungu", "Kisoro", "Rubanda", "Rukiga", "Rukungiri"]:
+    uganda_geo.add_district("Western", d)
 
 
 # ---------------------------------------------------------
-# Custom Jinja Filter for Safe Image URLs with Spaces
+# Custom Jinja Filter for Safe Image URLs
 # ---------------------------------------------------------
 @app.template_filter('url_encode_path')
 def url_encode_path(s):
@@ -153,6 +201,7 @@ def url_encode_path(s):
 # ---------------------------------------------------------
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
+    conn.execute('PRAGMA foreign_keys = ON;')
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -204,24 +253,43 @@ def init_db():
         )
     ''')
 
-    # Migration check: Ensure latitude/longitude columns exist in existing DB
     cursor.execute("PRAGMA table_info(appointments)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'latitude' not in columns:
         cursor.execute("ALTER TABLE appointments ADD COLUMN latitude REAL")
     if 'longitude' not in columns:
         cursor.execute("ALTER TABLE appointments ADD COLUMN longitude REAL")
+    if 'reference' not in columns:
+        cursor.execute("ALTER TABLE appointments ADD COLUMN reference TEXT")
 
-    # Seed default admin account
-    cursor.execute('SELECT password FROM users WHERE email = ?', ('admin@carehive.com',))
-    admin = cursor.fetchone()
-    if not admin:
-        cursor.execute(
-            'INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
-            ('admin@carehive.com', 'System Administrator', 'admin', generate_password_hash('admin123'))
-        )
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [col[1] for col in cursor.fetchall()]
+    if 'permissions' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN permissions TEXT")
 
-    # Seed default initial reviews if empty
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
+
+    admin_email = "admin@carehive.com"
+    cursor.execute("SELECT password FROM users WHERE email = ?", (admin_email,))
+    admin_row = cursor.fetchone()
+    # A valid Werkzeug hash carries its method prefix (e.g. "pbkdf2:sha256:...").
+    # Older data seeded a bare SHA-256 digest, which check_password_hash cannot
+    # verify, so the admin could never log in. Create or repair the account here.
+    admin_pass_ok = admin_row is not None and ':' in (admin_row[0] or '')
+    if not admin_pass_ok:
+        admin_pass = generate_password_hash("admin123")
+        if admin_row is None:
+            cursor.execute(
+                'INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
+                (admin_email, 'System Administrator', 'admin', admin_pass)
+            )
+        else:
+            cursor.execute(
+                "UPDATE users SET role = 'admin', password = ? WHERE email = ?",
+                (admin_pass, admin_email)
+            )
+
     cursor.execute('SELECT COUNT(*) FROM reviews')
     if cursor.fetchone()[0] == 0:
         cursor.execute(
@@ -238,66 +306,16 @@ def init_db():
 
 
 # ---------------------------------------------------------
-# User Activity Log Tracking
-# ---------------------------------------------------------
-USER_STATUS = {}
-
-
-def log_activity(email, action):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute('INSERT INTO logs (email, action, timestamp) VALUES (?, ?, ?)', (email, action, now))
-    conn.commit()
-    conn.close()
-
-
-def get_user_activity_info(email):
-    if email not in USER_STATUS or USER_STATUS[email].get('status') == 'Logged Out':
-        return {'status': 'Logged Out', 'duration': '0m', 'last_active': 'N/A'}
-
-    info = USER_STATUS[email]
-    now = datetime.now(timezone.utc)
-    duration_secs = int((now - info['login_time']).total_seconds())
-    mins, secs = divmod(duration_secs, 60)
-    hours, mins = divmod(mins, 60)
-    duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m {secs}s"
-
-    idle_secs = (now - info['last_active']).total_seconds()
-    current_status = 'Paused / Idle' if idle_secs > 300 else 'Active Online'
-
-    return {
-        'status': current_status,
-        'duration': duration_str,
-        'last_active': info['last_active'].strftime("%H:%M:%S UTC")
-    }
-
-
-# ---------------------------------------------------------
 # HTML Templates
 # ---------------------------------------------------------
 COMMON_HEAD = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carehive Homecare Limited</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg: #f8fafc; --surface: #ffffff; --text: #1e293b; --text-muted: #64748b; --border: #e2e8f0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background-color: var(--bg); color: var(--text); line-height: 1.6; }
-        .navbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.2rem 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; }
-        .logo-img { height: 110px; width: auto; object-fit: contain; }
-        .btn { background: var(--primary); color: white; border: none; padding: 0.75rem 1.4rem; border-radius: 10px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-        .btn:hover { background: var(--primary-hover); }
-        .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
-        .container { max-width: 1140px; margin: 0 auto; padding: 0 1.5rem; }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03); }
-        .form-group { margin-bottom: 1rem; }
-        .form-group label { display: block; margin-bottom: 0.3rem; font-weight: 500; font-size: 0.9rem; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
-        .alert { background: #fee2e2; color: #991b1b; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
-        .success-alert { background: #dcfce7; color: #166534; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 """
 
 INDEX_HTML = """
@@ -306,26 +324,29 @@ INDEX_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carehive Homecare Limited</title>
+    <title>Carehive Homecare Limited - Compassionate & Connected Care</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans">
-    <!-- Top Contact Bar -->
-    <div class="bg-blue-900 text-white text-sm py-2 px-6 flex justify-between items-center flex-wrap">
-        <div class="flex items-center space-x-6">
-            <span><i class="fa-solid fa-phone text-red-400 mr-2"></i>+256 753 976 912</span>
-            <span><i class="fa-brands fa-whatsapp text-green-400 mr-2"></i>+256 708 083 118</span>
+<body class="bg-slate-50 text-slate-800 antialiased">
+    <div class="bg-slate-900 text-blue-100 text-xs py-2 px-6 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-2">
+            <div class="flex items-center space-x-6">
+                <a href="tel:+256753976912" class="hover:text-white transition-colors"><i class="fa-solid fa-phone text-blue-400 mr-2"></i>+256 753 976 912</a>
+                <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400 mr-2"></i>+256 708 083 118</a>
+                <a href="mailto:info@carehive.com" class="hidden sm:inline hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400 mr-2"></i>info@carehive.com</a>
+            </div>
+            <div class="text-blue-300 font-medium"><i class="fa-solid fa-location-dot mr-1"></i>Kampala & Greater Uganda</div>
         </div>
-        <div class="text-xs text-blue-200">Kampala, Uganda</div>
     </div>
 
-    <!-- DISAPPEARING DASHBOARD LOGIN/SIGNUP PROMPT BANNER -->
     {% if not session.get('user') %}
-    <div id="disappearing-dashboard-banner" class="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 text-white border-b border-indigo-500 shadow-md transition-all duration-500 overflow-hidden">
-        <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div id="disappearing-dashboard-banner" class="bg-gradient-to-r from-blue-900 via-blue-800 to-slate-900 text-white border-b border-blue-700 shadow-md transition-all duration-500 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-6 py-2.5 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center space-x-3">
-                <span class="bg-amber-400 text-blue-950 p-2 rounded-lg font-bold text-xs shadow-sm flex items-center gap-1">
+                <span class="bg-amber-400 text-slate-950 p-1.5 rounded-lg font-bold text-xs shadow-sm flex items-center gap-1">
                     <i class="fa-solid fa-gauge-high"></i> DASHBOARD
                 </span>
                 <p class="text-xs md:text-sm font-medium">
@@ -333,10 +354,10 @@ INDEX_HTML = """
                 </p>
             </div>
             <div class="flex items-center space-x-3">
-                <a href="/login" class="bg-white text-blue-900 hover:bg-slate-100 font-bold px-4 py-1.5 rounded-lg text-xs transition shadow-sm">
+                <a href="/login" class="bg-white text-blue-950 hover:bg-slate-100 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i> Log In
                 </a>
-                <a href="/signup" class="bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-4 py-1.5 rounded-lg text-xs transition shadow-sm">
+                <a href="/signup" class="bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm">
                     <i class="fa-solid fa-user-plus mr-1"></i> Sign Up
                 </a>
                 <button onclick="dismissDashboardBanner()" class="text-blue-200 hover:text-white p-1 ml-2 transition focus:outline-none" title="Dismiss dashboard banner">
@@ -350,7 +371,6 @@ INDEX_HTML = """
             const banner = document.getElementById('disappearing-dashboard-banner');
             if (banner) banner.style.display = 'none';
         }
-
         function dismissDashboardBanner() {
             const banner = document.getElementById('disappearing-dashboard-banner');
             if (banner) {
@@ -363,133 +383,384 @@ INDEX_HTML = """
     </script>
     {% endif %}
 
-    <!-- Header / Nav with Centered & Enlarged Logo -->
-    <header class="bg-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col items-center justify-center space-y-3">
-            <div class="flex flex-col items-center text-center">
-                <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-28 w-auto rounded-2xl object-contain border border-slate-100 shadow-md mb-2" onerror="this.onerror=null; this.src='https://placehold.co/240x240?text=Carehive';">
-                <h1 class="font-black text-2xl md:text-3xl text-blue-900 leading-tight tracking-tight">CAREHIVE HOMECARE LIMITED</h1>
-                <p class="text-xs md:text-sm text-red-600 font-extrabold tracking-widest uppercase mt-0.5">SAFE NURSING & CARE AT YOUR HOME</p>
-            </div>
-            <nav class="flex items-center space-x-6 text-sm font-semibold pt-2 border-t border-slate-100 w-full justify-center">
-                <a href="#services" class="hover:text-blue-700 transition">Services</a>
-                <button onclick="openBookingForm()" class="hover:text-blue-700 transition font-semibold">Book Care</button>
-                <a href="#reviews" class="hover:text-blue-700 transition">Reviews</a>
-                {% if session.get('user') %}
-                    <a href="/dashboard" class="bg-blue-600 text-white px-5 py-2 rounded-xl hover:bg-blue-700 transition">Dashboard</a>
-                {% else %}
-                    <a href="/login" class="bg-slate-100 text-slate-700 px-5 py-2 rounded-xl border hover:bg-slate-200 transition">Portal Login</a>
-                {% endif %}
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3">
+                <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
+                <div>
+                    <span class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight block">Care<span class="text-blue-600">Hive</span></span>
+                    <span class="text-[10px] text-blue-700 font-bold tracking-wider uppercase block -mt-1">Homecare Limited</span>
+                </div>
+            </a>
+
+            <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+                <a href="#services" class="hover:text-blue-600 transition-colors">Services</a>
+                <a href="#how-it-works" class="hover:text-blue-600 transition-colors">How It Works</a>
+                <a href="#reviews" class="hover:text-blue-600 transition-colors">Testimonials</a>
+                <a href="#contact" class="hover:text-blue-600 transition-colors">Contact</a>
+                <button onclick="openBookingForm()" class="hover:text-blue-600 transition-colors">Book Care</button>
             </nav>
+
+            <div class="flex items-center gap-3">
+                {% if session.get('user') %}
+                    <a href="/dashboard" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
+                        Dashboard
+                    </a>
+                {% else %}
+                    <a href="/login" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">Log In</a>
+                    <a href="/signup" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
+                        Get Started
+                    </a>
+                {% endif %}
+            </div>
         </div>
     </header>
 
-    <!-- Care UK-Inspired Hero Section with Interactive Care Finder -->
-    <section class="relative bg-gradient-to-r from-blue-950 via-indigo-900 to-slate-900 text-white py-20 px-6 text-center">
-        <div class="max-w-5xl mx-auto">
-            <span class="bg-blue-800/80 text-blue-200 text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-blue-700/50 inline-block mb-4">
-                Uganda's Premier Home Nursing Service
-            </span>
-            <h2 class="text-4xl md:text-5xl font-black mb-4 leading-tight">Quality Home Care Services</h2>
-            <p class="text-blue-100 max-w-2xl mx-auto mb-8 text-lg">Professional, compassionate healthcare and home nursing delivered directly to your doorstep in Uganda.</p>
-
-            <!-- Inline Care Finder Bar with District Dropdown -->
-            <div class="bg-white p-4 rounded-2xl shadow-2xl max-w-3xl mx-auto text-slate-800 flex flex-col md:flex-row gap-3">
-                <div class="flex-1 text-left px-2">
-                    <label class="block text-xs font-bold text-slate-400 uppercase">Care Needed</label>
-                    <select id="hero-service-select" class="w-full text-sm font-semibold bg-transparent py-2 border-b border-slate-200 focus:outline-none">
-                        <option value="Professional Nursing Care">Professional Nursing Care</option>
-                        <option value="Elderly Care">Elderly & Respiratory Care</option>
-                        <option value="Baby Care">Pediatric & Baby Care</option>
-                        <option value="Post Surgery Care">Post-Surgery Support</option>
-                    </select>
-                </div>
-                <div class="flex-1 text-left px-2">
-                    <label class="block text-xs font-bold text-slate-400 uppercase">Select District</label>
-                    <select id="hero-district-select" class="w-full text-sm font-semibold bg-transparent py-2 border-b border-slate-200 focus:outline-none">
-                        <option value="">-- All Districts --</option>
-                    </select>
-                </div>
-                <button onclick="handleHeroBooking()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-magnifying-glass"></i> Book Care
-                </button>
+    {% if booking_reference %}
+    <div class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl shadow-2xl p-8 text-center space-y-4">
+            <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-check"></i>
             </div>
-        </div>
-    </section>
-
-    <!-- Trust & Quality Indicators Bar -->
-    <div class="bg-white border-b border-slate-200 py-6 px-6">
-        <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div>
-                <div class="text-2xl font-black text-blue-900">4.9 / 5.0</div>
-                <div class="text-xs text-slate-500 font-medium">Client Rating</div>
-            </div>
-            <div>
-                <div class="text-2xl font-black text-blue-900">100%</div>
-                <div class="text-xs text-slate-500 font-medium">Vetted Medical Staff</div>
-            </div>
-            <div>
-                <div class="text-2xl font-black text-blue-900">24/7</div>
-                <div class="text-xs text-slate-500 font-medium">On-Call Support</div>
-            </div>
-            <div>
-                <div class="text-2xl font-black text-blue-900">Kampala & Beyond</div>
-                <div class="text-xs text-slate-500 font-medium">Service Coverage</div>
-            </div>
+            <h3 class="text-xl font-bold text-slate-900">Booking Confirmed</h3>
+            <p class="text-sm text-slate-500">Your appointment reference is</p>
+            <p class="text-lg font-mono font-bold text-blue-700 bg-blue-50 rounded-xl py-2">{{ booking_reference }}</p>
+            <a href="/ticket/{{ booking_reference }}" target="_blank" class="inline-flex w-full justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">
+                <i class="fa-solid fa-file-pdf"></i> View / Download PDF Ticket
+            </a>
+            <a href="/" class="block text-xs text-slate-400 hover:text-slate-600">Close</a>
         </div>
     </div>
+    {% endif %}
 
-    <!-- Registration Prompt Notice -->
-    <div class="max-w-7xl mx-auto mt-8 px-6">
-        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm flex items-start gap-3">
-            <i class="fa-solid fa-circle-info text-amber-600 text-xl mt-0.5"></i>
+    <main>
+        <section class="relative py-16 lg:py-24 overflow-hidden bg-slate-900 text-white">
+            <div class="absolute inset-0 z-0">
+                <img src="https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80" alt="" class="w-full h-full object-cover opacity-25">
+                <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-900/70"></div>
+            </div>
+            <div class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-6 text-center lg:text-left">
+                    <div class="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
+                        Compassionate Care At Your Home
+                    </div>
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight">
+                        Safe nursing care, <span class="text-blue-400">connected community.</span>
+                    </h1>
+                    <p class="text-slate-300 text-base sm:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                        Carehive Homecare Limited delivers vetted, professional medical support and eldercare directly to your family's doorstep across Uganda.
+                    </p>
+
+                    <div class="bg-white p-4 rounded-2xl shadow-2xl text-slate-800 space-y-3 mt-6">
+                        <div class="grid sm:grid-cols-2 gap-3 text-left">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Care Required</label>
+                                <select id="hero-service-select" class="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                                    <option value="Professional Nursing Care">Professional Nursing Care</option>
+                                    <option value="Elderly Care">Elderly & Respiratory Care</option>
+                                    <option value="Baby Care">Pediatric & Baby Care</option>
+                                    <option value="Post Surgery Care">Post-Surgery Support</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Select District</label>
+                                <select id="hero-district-select" class="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                                    <option value="">-- All Districts --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button onclick="handleHeroBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass"></i> Find Care & Book
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative flex justify-center">
+                    <div class="w-full max-w-md bg-white p-6 rounded-3xl shadow-2xl text-slate-800 space-y-6 relative z-10 border border-slate-100">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg">CH</div>
+                                <div>
+                                    <h3 class="font-bold text-slate-900">Carehive Staff</h3>
+                                    <p class="text-xs text-slate-500">Verified Homecare Specialist</p>
+                                </div>
+                            </div>
+                            <span class="bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> On Duty
+                            </span>
+                        </div>
+                        <div class="space-y-3">
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scheduled Care Visit</p>
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-sm border border-slate-100">
+                                <span class="font-medium text-slate-700"><i class="fa-solid fa-pills text-blue-600 mr-2"></i> Medication Management</span>
+                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">Completed</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-sm border border-slate-100">
+                                <span class="font-medium text-slate-700"><i class="fa-solid fa-stethoscope text-amber-500 mr-2"></i> Vital Signs Checkup</span>
+                                <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Today</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="absolute -top-10 -right-10 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl -z-0"></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="bg-white border-b border-slate-200 py-8 px-6">
+            <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+                <div>
+                    <p class="text-3xl font-extrabold text-slate-900">4.9 / 5.0</p>
+                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">Client Satisfaction</p>
+                </div>
+                <div>
+                    <p class="text-3xl font-extrabold text-slate-900">100%</p>
+                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">Vetted Medical Staff</p>
+                </div>
+                <div>
+                    <p class="text-3xl font-extrabold text-slate-900">24 / 7</p>
+                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">On-Call Support</p>
+                </div>
+                <div>
+                    <p class="text-3xl font-extrabold text-slate-900">Uganda-Wide</p>
+                    <p class="text-xs text-slate-500 font-medium uppercase mt-1">Regional Coverage</p>
+                </div>
+            </div>
+        </div>
+
+        <section id="services" class="py-20 bg-white">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center max-w-2xl mx-auto mb-16">
+                    <h2 class="text-3xl font-bold text-slate-900">Our Nursing & Care Services</h2>
+                    <p class="text-slate-600 mt-3">Tailored healthcare plans designed specifically for your home environment.</p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden hover:shadow-lg transition-all flex flex-col justify-between">
+                        <div>
+                            <img src="/static/images/{{ 'nursing care.jpeg'|url_encode_path }}" alt="Nursing Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80';">
+                            <div class="p-6">
+                                <h3 class="text-xl font-bold text-slate-900 mb-2">Professional Nursing Care</h3>
+                                <p class="text-slate-600 text-sm leading-relaxed">
+                                    Wound dressing, post-operative rehabilitation, vital signs tracking, and medication administration by certified nurses.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <button onclick="openBookingForm('Wound Dressing')" class="text-sm font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                                Book Nursing Care <i class="fa-solid fa-arrow-right text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden hover:shadow-lg transition-all flex flex-col justify-between">
+                        <div>
+                            <img src="/static/images/{{ 'broncure.jpeg'|url_encode_path }}" alt="Elderly Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80';">
+                            <div class="p-6">
+                                <h3 class="text-xl font-bold text-slate-900 mb-2">Respiratory & Elderly Care</h3>
+                                <p class="text-slate-600 text-sm leading-relaxed">
+                                    Comprehensive support for senior family members, mobility assistance, respiratory monitoring, and continuous companion care.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <button onclick="openBookingForm('Elderly Care')" class="text-sm font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                                Book Elderly Care <i class="fa-solid fa-arrow-right text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden hover:shadow-lg transition-all flex flex-col justify-between">
+                        <div>
+                            <img src="/static/images/{{ 'baby care.jpeg'|url_encode_path }}" alt="Baby Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=600&q=80';">
+                            <div class="p-6">
+                                <h3 class="text-xl font-bold text-slate-900 mb-2">Pediatric & Baby Care</h3>
+                                <p class="text-slate-600 text-sm leading-relaxed">
+                                    Gentle postnatal support for mothers and newborns, specialized pediatric nursing care, and infant wellness checks.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="p-6 pt-0">
+                            <button onclick="openBookingForm('Baby Care')" class="text-sm font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                                Book Baby Care <i class="fa-solid fa-arrow-right text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="how-it-works" class="py-20 bg-slate-50 border-t border-b border-slate-100">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center max-w-2xl mx-auto mb-16">
+                    <h2 class="text-3xl font-bold text-slate-900">How Carehive Works</h2>
+                    <p class="text-slate-600 mt-3">Simple steps to coordinate homecare visits effortlessly.</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-8 text-center">
+                    <div class="space-y-4 p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
+                        <div class="w-12 h-12 rounded-full bg-blue-600 text-white font-bold text-lg flex items-center justify-center mx-auto shadow-md">1</div>
+                        <h3 class="text-lg font-bold text-slate-900">Select Service & Location</h3>
+                        <p class="text-sm text-slate-600">Choose required healthcare assistance and set your location using GPS or regional dropdowns.</p>
+                    </div>
+                    <div class="space-y-4 p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
+                        <div class="w-12 h-12 rounded-full bg-blue-600 text-white font-bold text-lg flex items-center justify-center mx-auto shadow-md">2</div>
+                        <h3 class="text-lg font-bold text-slate-900">Schedule & Match</h3>
+                        <p class="text-sm text-slate-600">Set your preferred care date. We match your request with trained medical professionals.</p>
+                    </div>
+                    <div class="space-y-4 p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
+                        <div class="w-12 h-12 rounded-full bg-blue-600 text-white font-bold text-lg flex items-center justify-center mx-auto shadow-md">3</div>
+                        <h3 class="text-lg font-bold text-slate-900">Receive Care & Track</h3>
+                        <p class="text-sm text-slate-600">Our caregiver arrives at your home. Track updates and records in your portal dashboard.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="reviews" class="py-16 bg-white">
+            <div class="max-w-5xl mx-auto px-6">
+                <div class="text-center max-w-2xl mx-auto mb-10">
+                    <h2 class="text-3xl font-bold text-slate-900">Client Testimonials</h2>
+                    <p class="text-slate-600 mt-3">Hear from families who trust Carehive Homecare for their loved ones.</p>
+                </div>
+
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+                    {% for review in reviews %}
+                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-9 h-9 shrink-0 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                                {{ review['client_name'][:1]|upper }}
+                            </div>
+                            <div class="min-w-0">
+                                <h4 class="font-bold text-slate-900 text-sm truncate">{{ review['client_name'] }}</h4>
+                                <div class="text-amber-400 text-xs">
+                                    {% for i in range(review['rating']) %}<i class="fa-solid fa-star"></i>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-slate-600 text-sm italic line-clamp-3">"{{ review['comment'] }}"</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="text-center">
+                    <button type="button" onclick="toggleReviewForm()" id="review-form-toggle" class="text-sm font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-nib"></i> Share Your Experience
+                    </button>
+                </div>
+
+                <div id="review-form-wrap" class="hidden mt-6">
+                    <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 max-w-md mx-auto shadow-sm">
+                        <form action="/review" method="POST" class="space-y-3">
+                            <input type="text" name="client_name" required placeholder="Your Name" class="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500">
+                            <select name="rating" class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white">
+                                <option value="5">5 Stars - Excellent</option>
+                                <option value="4">4 Stars - Very Good</option>
+                                <option value="3">3 Stars - Good</option>
+                                <option value="2">2 Stars - Fair</option>
+                                <option value="1">1 Star - Poor</option>
+                            </select>
+                            <textarea name="comment" required placeholder="Describe your experience with our care team..." class="w-full p-2.5 border border-slate-200 rounded-xl text-sm h-20 focus:outline-none focus:border-blue-500"></textarea>
+                            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl transition text-sm">Submit Client Review</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="py-20 bg-slate-900 text-white">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="text-center max-w-2xl mx-auto mb-14">
+                    <h2 class="text-3xl font-bold text-white">Get In Touch</h2>
+                    <p class="text-slate-300 mt-3">Reach our care coordination team any time — we're on call 24/7 across Uganda.</p>
+                </div>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <a href="tel:+256753976912" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
+                        <div class="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Call Us</p>
+                        <p class="font-bold text-white">+256 753 976 912</p>
+                    </a>
+                    <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">WhatsApp</p>
+                        <p class="font-bold text-white">+256 708 083 118</p>
+                    </a>
+                    <a href="mailto:info@carehive.com" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
+                        <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                            <i class="fa-solid fa-envelope"></i>
+                        </div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</p>
+                        <p class="font-bold text-white break-all">info@carehive.com</p>
+                    </a>
+                    <div class="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+                        <div class="w-12 h-12 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                            <i class="fa-solid fa-location-dot"></i>
+                        </div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Coverage Area</p>
+                        <p class="font-bold text-white">Kampala & Greater Uganda</p>
+                    </div>
+                </div>
+                <div class="text-center mt-10">
+                    <button onclick="openBookingForm()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 inline-flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> Book a Care Visit Now
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-950 text-slate-400 pt-14 pb-6">
+        <div class="max-w-7xl mx-auto px-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-10 border-b border-slate-800">
+            <div class="space-y-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">CH</div>
+                    <span class="text-lg font-bold text-white tracking-tight">Care<span class="text-blue-400">Hive</span></span>
+                </div>
+                <p class="text-sm leading-relaxed">Vetted, professional medical support and eldercare delivered directly to your family's doorstep across Uganda.</p>
+            </div>
             <div>
-                <h4 class="font-bold text-amber-900 text-sm">Please Register with Valid Contact Details</h4>
-                <p class="text-xs text-amber-800 mt-0.5">Explore all our available services and clinical details below. To schedule visits or request care, please register using your <strong>valid email address</strong> and <strong>phone number</strong> so our medical staff can reach you.</p>
+                <h4 class="text-white font-bold text-sm uppercase tracking-wider mb-4">Quick Links</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#services" class="hover:text-white transition-colors">Services</a></li>
+                    <li><a href="#how-it-works" class="hover:text-white transition-colors">How It Works</a></li>
+                    <li><a href="#reviews" class="hover:text-white transition-colors">Testimonials</a></li>
+                    <li><a href="#contact" class="hover:text-white transition-colors">Contact</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-bold text-sm uppercase tracking-wider mb-4">Our Services</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><button onclick="openBookingForm('Wound Dressing')" class="hover:text-white transition-colors text-left">Professional Nursing Care</button></li>
+                    <li><button onclick="openBookingForm('Elderly Care')" class="hover:text-white transition-colors text-left">Elderly & Respiratory Care</button></li>
+                    <li><button onclick="openBookingForm('Baby Care')" class="hover:text-white transition-colors text-left">Pediatric & Baby Care</button></li>
+                    <li><button onclick="openBookingForm('Post Surgery Care')" class="hover:text-white transition-colors text-left">Post-Surgery Support</button></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-bold text-sm uppercase tracking-wider mb-4">Contact Us</h4>
+                <ul class="space-y-3 text-sm">
+                    <li><a href="tel:+256753976912" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-phone text-blue-400"></i> +256 753 976 912</a></li>
+                    <li><a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400"></i> +256 708 083 118</a></li>
+                    <li><a href="mailto:info@carehive.com" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400"></i> info@carehive.com</a></li>
+                    <li class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-rose-400"></i> Kampala & Greater Uganda</li>
+                </ul>
             </div>
         </div>
-    </div>
-
-    <!-- Services Grid with Images -->
-    <section id="services" class="py-12 px-6 max-w-7xl mx-auto">
-        <h2 class="text-3xl font-bold text-center text-blue-900 mb-10">Our Nursing & Care Services</h2>
-        <div class="grid md:grid-cols-3 gap-8">
-            <!-- Service 1: Nursing Care -->
-            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden hover:shadow-lg transition">
-                <img src="/static/images/{{ 'nursing care.jpeg'|url_encode_path }}" alt="Nursing Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80';">
-                <div class="p-6">
-                    <h3 class="font-bold text-xl text-blue-900 mb-2">Professional Nursing Care</h3>
-                    <p class="text-slate-600 text-sm mb-4">Post-operative support, wound dressing, vital signs monitoring, and medication management at home.</p>
-                    <button onclick="openBookingForm('Wound Dressing')" class="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1">Register to Book <i class="fa-solid fa-arrow-right"></i></button>
-                </div>
-            </div>
-            <!-- Service 2: Broncure Care -->
-            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden hover:shadow-lg transition">
-                <img src="/static/images/{{ 'broncure.jpeg'|url_encode_path }}" alt="Respiratory & Elderly Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80';">
-                <div class="p-6">
-                    <h3 class="font-bold text-xl text-blue-900 mb-2">Respiratory & Elderly Care</h3>
-                    <p class="text-slate-600 text-sm mb-4">Dedicated eldercare, respiratory support, and continuous health assessments for elderly family members.</p>
-                    <button onclick="openBookingForm('Elderly Care')" class="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1">Register to Book <i class="fa-solid fa-arrow-right"></i></button>
-                </div>
-            </div>
-            <!-- Service 3: Baby Care -->
-            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden hover:shadow-lg transition">
-                <img src="/static/images/{{ 'baby care.jpeg'|url_encode_path }}" alt="Pediatric & Baby Care" class="w-full h-48 object-cover" onerror="this.src='https://images.unsplash.com/photo-1555252333-9f8e92e65df9?auto=format&fit=crop&w=600&q=80';">
-                <div class="p-6">
-                    <h3 class="font-bold text-xl text-blue-900 mb-2">Pediatric & Baby Care</h3>
-                    <p class="text-slate-600 text-sm mb-4">Expert infant care, postnatal mother support, and specialized pediatric nursing care at home.</p>
-                    <button onclick="openBookingForm('Baby Care')" class="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1">Register to Book <i class="fa-solid fa-arrow-right"></i></button>
-                </div>
-            </div>
+        <div class="max-w-7xl mx-auto px-6 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs">
+            <p>&copy; 2026 Carehive Homecare Limited. All rights reserved.</p>
+            <p>Licensed & vetted medical homecare provider in Uganda.</p>
         </div>
-    </section>
+    </footer>
 
-    <!-- Appointment Booking Modal/Form Container (Removed direct display from standard homepage flow) -->
-    <section id="register-container" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4 md:p-6 flex items-center justify-center">
-        <div class="max-w-3xl w-full bg-white p-8 rounded-2xl shadow-2xl border border-slate-200 relative my-8">
+    <section id="register-container" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4 flex items-center justify-center">
+        <div class="max-w-3xl w-full bg-white p-6 md:p-8 rounded-3xl shadow-2xl border border-slate-200 relative my-auto max-h-[90vh] overflow-y-auto">
             <button onclick="closeBookingForm()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xl p-2"><i class="fa-solid fa-xmark"></i></button>
-            <h2 class="text-2xl font-bold text-blue-900 mb-2 text-center">Book a Home Care Appointment</h2>
-            <p class="text-center text-slate-500 text-sm mb-6">Enter your valid contact details and choose your location in Uganda.</p>
+            <h2 class="text-2xl font-bold text-slate-900 mb-1 text-center">Book a Home Care Appointment</h2>
+            <p class="text-center text-slate-500 text-xs mb-6">Enter your valid contact details and location in Uganda.</p>
+            
             <form action="/register" method="POST" class="space-y-4" onsubmit="return validateForm()">
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
@@ -497,16 +768,16 @@ INDEX_HTML = """
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
-                    <input type="text" name="full_name" required placeholder="John Doe" class="w-full p-3 border rounded-xl">
+                    <input type="text" name="full_name" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
                 <div class="grid md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valid Phone Number</label>
-                        <input type="tel" name="phone" required placeholder="+256 700 000 000" class="w-full p-3 border rounded-xl">
+                        <input type="tel" name="phone" required placeholder="+256 700 000 000" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Service Required</label>
-                        <select id="form-service-select" name="service" required class="w-full p-3 border rounded-xl">
+                        <select id="form-service-select" name="service" required class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
                             <option value="Blood Pressure Check">Blood Pressure Check</option>
                             <option value="Wound Dressing">Wound Dressing</option>
                             <option value="Elderly Care">Elderly Care</option>
@@ -516,13 +787,12 @@ INDEX_HTML = """
                     </div>
                 </div>
 
-                <!-- CASCADING GEOGRAPHY DROPDOWNS & GPS OVERRIDE -->
-                <div class="p-4 bg-slate-50 border rounded-xl space-y-3">
+                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                     <div class="flex justify-between items-center">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase">
+                        <label class="block text-xs font-bold text-slate-700 uppercase">
                             <i class="fa-solid fa-map-location-dot text-blue-600 mr-1"></i> Geographical Location
                         </label>
-                        <button type="button" onclick="getLocation()" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                        <button type="button" onclick="getLocation()" class="text-xs text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
                             <i class="fa-solid fa-location-crosshairs"></i> Use Live GPS
                         </button>
                     </div>
@@ -530,23 +800,34 @@ INDEX_HTML = """
                     <div id="district-selection-group" class="grid md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-500 mb-1">District / City</label>
-                            <select id="district-select" class="w-full p-3 border rounded-xl bg-white" onchange="onDistrictChange()">
+                            <select id="district-select" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white" onchange="onDistrictChange()">
                                 <option value="">-- Choose District --</option>
                             </select>
                         </div>
-                        <div>
+                        <div id="location-select-group">
                             <label class="block text-xs font-medium text-slate-500 mb-1">Sub-County / Division</label>
-                            <select id="location-select" class="w-full p-3 border rounded-xl bg-white" disabled>
+                            <select id="location-select" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white" onchange="updateManualVisibility()" disabled>
                                 <option value="">-- Select District First --</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Live GPS Auto-fill / Override Input View -->
+                    <div id="manual-location-inputs" class="hidden grid md:grid-cols-2 gap-4">
+                        <div id="manual-district-wrap" class="hidden">
+                            <label class="block text-xs font-medium text-amber-700 mb-1">Type Your District / Town</label>
+                            <input type="text" id="manual-district-input" placeholder="e.g. Kalungu Town" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
+                        </div>
+                        <div id="manual-area-wrap" class="hidden">
+                            <label class="block text-xs font-medium text-amber-700 mb-1">Type Your Area / Village / Landmark</label>
+                            <input type="text" id="manual-area-input" placeholder="e.g. Near Total Petrol Station" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Can't find your area on the list? Choose "Other" in either dropdown to type it in.</p>
+
                     <div id="gps-container" class="hidden">
-                        <label class="block text-xs font-medium text-emerald-700 mb-1">Live Location Detected (Auto-Filled)</label>
+                        <label class="block text-xs font-medium text-emerald-700 mb-1">Live Location Detected</label>
                         <input type="text" id="gps-display" readonly class="w-full p-3 border border-emerald-300 bg-emerald-50 text-emerald-900 rounded-xl font-mono text-xs font-bold">
-                        <button type="button" onclick="clearGPS()" class="text-xs text-slate-500 underline mt-1 block">Clear Live Location and select manually</button>
+                        <button type="button" onclick="clearGPS()" class="text-xs text-slate-500 underline mt-1 block">Clear Live Location</button>
                     </div>
 
                     <span id="gps-status" class="text-xs text-emerald-600 block font-semibold hidden"></span>
@@ -554,26 +835,24 @@ INDEX_HTML = """
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Preferred Date</label>
-                    <input type="date" name="preferred_date" required class="w-full p-3 border rounded-xl">
+                    <input type="date" name="preferred_date" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Additional Notes</label>
-                    <textarea name="notes" placeholder="Specify any health details or directions..." class="w-full p-3 border rounded-xl h-24"></textarea>
+                    <textarea name="notes" placeholder="Notes..." class="w-full p-3 border border-slate-200 rounded-xl text-sm h-20"></textarea>
                 </div>
-                <div class="flex gap-3">
-                    <button type="button" onclick="closeBookingForm()" class="w-1/3 bg-slate-200 text-slate-700 font-bold py-3.5 rounded-xl transition">Cancel</button>
-                    <button type="submit" class="w-2/3 bg-blue-800 hover:bg-blue-900 text-white font-bold py-3.5 rounded-xl shadow transition">Submit Care Request</button>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeBookingForm()" class="w-1/3 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-sm">Cancel</button>
+                    <button type="submit" class="w-2/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm">Submit Request</button>
                 </div>
             </form>
         </div>
     </section>
 
-    <!-- Script for Geography API Integration, District Pre-filtering & Live GPS Auto-fill -->
     <script>
         let ugandaGeoData = {};
         let isGpsActive = false;
 
-        // Fetch Uganda Taxonomy Registry on Page Load
         fetch('/api/uganda-geo')
             .then(res => res.json())
             .then(data => {
@@ -584,7 +863,6 @@ INDEX_HTML = """
         function populateDistricts() {
             const districtSelect = document.getElementById('district-select');
             const heroDistrictSelect = document.getElementById('hero-district-select');
-            
             districtSelect.innerHTML = '<option value="">-- Choose District --</option>';
             if (heroDistrictSelect) heroDistrictSelect.innerHTML = '<option value="">-- All Districts --</option>';
 
@@ -593,7 +871,6 @@ INDEX_HTML = """
                 opt.value = district;
                 opt.textContent = `${district} (${ugandaGeoData[district].region} Region)`;
                 districtSelect.appendChild(opt);
-
                 if (heroDistrictSelect) {
                     const heroOpt = document.createElement('option');
                     heroOpt.value = district;
@@ -601,42 +878,60 @@ INDEX_HTML = """
                     heroDistrictSelect.appendChild(heroOpt);
                 }
             }
+
+            const otherDistrictOpt = document.createElement('option');
+            otherDistrictOpt.value = '__other_district__';
+            otherDistrictOpt.textContent = "Other / My District Isn't Listed";
+            districtSelect.appendChild(otherDistrictOpt);
         }
 
         function onDistrictChange() {
             const districtSelect = document.getElementById('district-select');
             const locSelect = document.getElementById('location-select');
             const selectedDistrict = districtSelect.value;
+            locSelect.innerHTML = '<option value="">-- Select Division/Sub-County --</option>';
 
-            locSelect.innerHTML = '';
-
-            if (selectedDistrict && ugandaGeoData[selectedDistrict]) {
-                locSelect.disabled = false;
-                locSelect.innerHTML = '<option value="">-- Select Division/Sub-County --</option>';
+            if (selectedDistrict && selectedDistrict !== '__other_district__' && ugandaGeoData[selectedDistrict]) {
                 ugandaGeoData[selectedDistrict].locations.forEach(loc => {
                     const opt = document.createElement('option');
                     opt.value = loc;
                     opt.textContent = loc;
                     locSelect.appendChild(opt);
                 });
+            }
+
+            if (selectedDistrict && selectedDistrict !== '__other_district__') {
+                const otherLocOpt = document.createElement('option');
+                otherLocOpt.value = '__other_location__';
+                otherLocOpt.textContent = "Other / My area isn't listed (type manually)";
+                locSelect.appendChild(otherLocOpt);
+                locSelect.disabled = false;
             } else {
                 locSelect.disabled = true;
-                locSelect.innerHTML = '<option value="">-- Select District First --</option>';
             }
+            updateManualVisibility();
+        }
+
+        function updateManualVisibility() {
+            const districtSelect = document.getElementById('district-select');
+            const locSelect = document.getElementById('location-select');
+            const manualWrap = document.getElementById('manual-location-inputs');
+            const manualDistrictWrap = document.getElementById('manual-district-wrap');
+            const manualAreaWrap = document.getElementById('manual-area-wrap');
+
+            const needDistrict = districtSelect.value === '__other_district__';
+            const needArea = needDistrict || locSelect.value === '__other_location__';
+
+            manualDistrictWrap.classList.toggle('hidden', !needDistrict);
+            manualAreaWrap.classList.toggle('hidden', !needArea);
+            manualWrap.classList.toggle('hidden', !(needDistrict || needArea));
         }
 
         function openBookingForm(service = null, district = null) {
-            const container = document.getElementById('register-container');
-            container.classList.remove('hidden');
-
-            if (service) {
-                const serviceSelect = document.getElementById('form-service-select');
-                if (serviceSelect) serviceSelect.value = service;
-            }
-
+            document.getElementById('register-container').classList.remove('hidden');
+            if (service) document.getElementById('form-service-select').value = service;
             if (district) {
-                const districtSelect = document.getElementById('district-select');
-                districtSelect.value = district;
+                document.getElementById('district-select').value = district;
                 onDistrictChange();
             }
         }
@@ -645,44 +940,41 @@ INDEX_HTML = """
             document.getElementById('register-container').classList.add('hidden');
         }
 
+        function toggleReviewForm() {
+            const wrap = document.getElementById('review-form-wrap');
+            const btn = document.getElementById('review-form-toggle');
+            const isHidden = wrap.classList.toggle('hidden');
+            btn.innerHTML = isHidden
+                ? '<i class="fa-solid fa-pen-nib"></i> Share Your Experience'
+                : '<i class="fa-solid fa-xmark"></i> Close';
+            if (!isHidden) wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
         function handleHeroBooking() {
-            const selectedDistrict = document.getElementById('hero-district-select').value;
-            const selectedService = document.getElementById('hero-service-select').value;
-            openBookingForm(selectedService, selectedDistrict);
+            openBookingForm(document.getElementById('hero-service-select').value, document.getElementById('hero-district-select').value);
         }
 
         function getLocation() {
             const statusText = document.getElementById('gps-status');
             statusText.classList.remove('hidden');
             statusText.innerText = "Detecting live location...";
-
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-                        
                         document.getElementById('latitude').value = lat;
                         document.getElementById('longitude').value = lng;
-                        
-                        const gpsString = `Live GPS Location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-                        document.getElementById('gps-display').value = gpsString;
-                        
-                        // Auto-fill and bypass manual district/location dropdown selection
+                        document.getElementById('gps-display').value = `Live GPS Location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
                         isGpsActive = true;
                         document.getElementById('district-selection-group').classList.add('hidden');
                         document.getElementById('gps-container').classList.remove('hidden');
-
-                        statusText.innerText = "✓ Live location detected! District selection bypassed.";
+                        statusText.innerText = "✓ Live location detected!";
                     },
                     (error) => {
-                        statusText.innerText = "Unable to retrieve live location. Please select district manually.";
-                        statusText.classList.replace('text-emerald-600', 'text-red-500');
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
+                        statusText.innerText = "Unable to retrieve location.";
+                    }
                 );
-            } else {
-                alert("Geolocation is not supported by your browser.");
             }
         }
 
@@ -699,147 +991,147 @@ INDEX_HTML = """
             const locInput = document.getElementById('location');
             if (isGpsActive) {
                 locInput.value = document.getElementById('gps-display').value;
-            } else {
-                const dist = document.getElementById('district-select').value;
-                const loc = document.getElementById('location-select').value;
-                if (!dist || !loc) {
-                    alert("Please select both a District and Location or detect Live Location.");
+                return true;
+            }
+
+            const dist = document.getElementById('district-select').value;
+            let districtName = dist;
+            let areaName = document.getElementById('location-select').value;
+
+            if (dist === '__other_district__') {
+                districtName = document.getElementById('manual-district-input').value.trim();
+                if (!districtName) {
+                    alert("Please type your District / Town name.");
                     return false;
                 }
-                locInput.value = `${loc}, ${dist}`;
+                areaName = document.getElementById('manual-area-input').value.trim();
+            } else {
+                if (!dist) {
+                    alert("Please select a District, or choose \"Other / My District Isn't Listed\" if yours isn't shown.");
+                    return false;
+                }
+                if (areaName === '__other_location__') {
+                    areaName = document.getElementById('manual-area-input').value.trim();
+                    if (!areaName) {
+                        alert("Please type your Area / Village / Landmark.");
+                        return false;
+                    }
+                } else if (!areaName) {
+                    alert("Please select your Sub-County/Division, or choose \"Other\" to type it manually.");
+                    return false;
+                }
             }
+
+            locInput.value = areaName ? `${areaName}, ${districtName}` : districtName;
             return true;
         }
     </script>
-
-    <!-- Reviews Section -->
-    <section id="reviews" class="py-16 px-6 max-w-5xl mx-auto">
-        <h2 class="text-3xl font-bold text-center text-blue-900 mb-8">Client Testimonials</h2>
-        
-        <div class="grid md:grid-cols-2 gap-6 mb-12">
-            {% for review in reviews %}
-            <div class="bg-white p-6 rounded-2xl shadow border border-slate-200">
-                <div class="flex justify-between items-center mb-3">
-                    <h4 class="font-bold text-slate-900">{{ review['client_name'] }}</h4>
-                    <div class="text-amber-400 text-sm">
-                        {% for i in range(review['rating']) %}<i class="fa-solid fa-star"></i>{% endfor %}
-                    </div>
-                </div>
-                <p class="text-slate-600 text-sm italic">"{{ review['comment'] }}"</p>
-                <span class="text-xs text-slate-400 mt-3 block">{{ review['created_at'] }}</span>
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Add Review Form -->
-        <div class="bg-slate-100 p-6 rounded-2xl border border-slate-200 max-w-xl mx-auto">
-            <h3 class="font-bold text-lg text-slate-900 mb-4 text-center">Leave a Client Review</h3>
-            <form action="/review" method="POST" class="space-y-3">
-                <input type="text" name="client_name" required placeholder="Your Name" class="w-full p-3 border rounded-lg">
-                <select name="rating" class="w-full p-3 border rounded-lg">
-                    <option value="5">5 Stars - Excellent</option>
-                    <option value="4">4 Stars - Very Good</option>
-                    <option value="3">3 Stars - Good</option>
-                    <option value="2">2 Stars - Fair</option>
-                    <option value="1">1 Star - Poor</option>
-                </select>
-                <textarea name="comment" required placeholder="Your experience with our care team..." class="w-full p-3 border rounded-lg h-20"></textarea>
-                <button type="submit" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-lg hover:bg-slate-900 transition">Submit Review</button>
-            </form>
-        </div>
-    </section>
-
-    <footer class="bg-slate-900 text-slate-400 text-center py-8 border-t border-slate-800 text-sm">
-        <p>© 2026 Carehive Homecare Limited. All rights reserved.</p>
-    </footer>
 </body>
 </html>
 """
 
 SIGNUP_HTML = COMMON_HEAD + """
-<body>
-    <nav class="navbar">
-        <a href="/" style="text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:8px;">
-            <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/240x240?text=Carehive';">
-            <span style="font-weight:800; font-size:1.4rem; color:var(--primary);">Carehive Portal</span>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+    <nav class="bg-white border-b border-slate-100 py-4 px-6 flex justify-between items-center">
+        <a href="/" class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">CH</div>
+            <span class="text-lg font-bold text-slate-900 tracking-tight">Care<span class="text-blue-600">Hive</span> Portal</span>
         </a>
-        <a href="/" class="btn btn-outline">← Home</a>
+        <a href="/" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back Home</a>
     </nav>
-    <div class="container" style="max-width: 450px; margin-top: 2rem; margin-bottom: 3rem;">
-        <div class="card">
-            <h2 style="text-align: center; margin-bottom: 0.5rem;">Client Registration</h2>
-            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Create your Carehive patient account with a valid email</p>
-            {% if error %} <div class="alert">{{ error }}</div> {% endif %}
-            <form action="/signup" method="POST">
-                <div class="form-group"><label>Full Name</label><input type="text" name="fullname" required placeholder="John Doe"></div>
-                <div class="form-group"><label>Valid Email Address</label><input type="email" name="email" required placeholder="name@domain.com"></div>
-                <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
-                <button type="submit" class="btn" style="width: 100%; justify-content: center;">Register Account</button>
+    <div class="max-w-md w-full mx-auto p-6 my-8">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <h2 class="text-2xl font-bold text-slate-900 text-center mb-1">Client Registration</h2>
+            <p class="text-xs text-slate-500 text-center mb-6">Create your Carehive account with a valid email</p>
+            {% if error %} <div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ error }}</div> {% endif %}
+            <form action="/signup" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
+                    <input type="text" name="fullname" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valid Email Address</label>
+                    <input type="email" name="email" required placeholder="name@domain.com" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
+                    <input type="password" name="password" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Register Account</button>
             </form>
-            <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">Already have an account? <a href="/login" style="color:var(--primary);">Login here</a></p>
+            <p class="text-center mt-6 text-xs text-slate-500">Already have an account? <a href="/login" class="text-blue-600 font-bold hover:underline">Login here</a></p>
         </div>
     </div>
+    <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
 </body>
 </html>
 """
 
 LOGIN_HTML = COMMON_HEAD + """
-<body>
-    <nav class="navbar">
-        <a href="/" style="text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:8px;">
-            <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/240x240?text=Carehive';">
-            <span style="font-weight:800; font-size:1.4rem; color:var(--primary);">Carehive Portal</span>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+    <nav class="bg-white border-b border-slate-100 py-4 px-6 flex justify-between items-center">
+        <a href="/" class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">CH</div>
+            <span class="text-lg font-bold text-slate-900 tracking-tight">Care<span class="text-blue-600">Hive</span> Portal</span>
         </a>
-        <a href="/" class="btn btn-outline">← Home</a>
+        <a href="/" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back Home</a>
     </nav>
-    <div class="container" style="max-width: 400px; margin-top: 2rem; margin-bottom: 3rem;">
-        <div class="card">
-            <h2 style="text-align: center; margin-bottom: 0.5rem;">Portal Login</h2>
-            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Sign in to Client & Staff Dashboard</p>
-            {% if error %} <div class="alert">{{ error }}</div> {% endif %}
-            <form action="/login" method="POST">
-                <div class="form-group"><label>Email Address</label><input type="email" name="email" required></div>
-                <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
-                <button type="submit" class="btn" style="width: 100%; justify-content: center;">Log In</button>
+    <div class="max-w-md w-full mx-auto p-6 my-8">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <h2 class="text-2xl font-bold text-slate-900 text-center mb-1">Portal Login</h2>
+            <p class="text-xs text-slate-500 text-center mb-6">Sign in to Client & Staff Dashboard</p>
+            {% if error %} <div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ error }}</div> {% endif %}
+            <form action="/login" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Address</label>
+                    <input type="email" name="email" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
+                    <input type="password" name="password" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Log In</button>
             </form>
-            <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">Need an account? <a href="/signup" style="color:var(--primary);">Sign up</a></p>
+            <p class="text-center mt-6 text-xs text-slate-500">Need an account? <a href="/signup" class="text-blue-600 font-bold hover:underline">Sign up</a></p>
         </div>
     </div>
+    <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
 </body>
 </html>
 """
 
 SETTINGS_HTML = COMMON_HEAD + """
-<body>
-    <nav class="navbar">
-        <a href="/" style="text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:8px;">
-            <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/240x240?text=Carehive';">
-            <span style="font-weight:800; font-size:1.4rem; color:var(--primary);">Carehive Portal</span>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+    <nav class="bg-white border-b border-slate-100 py-4 px-6 flex justify-between items-center">
+        <a href="/" class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">CH</div>
+            <span class="text-lg font-bold text-slate-900 tracking-tight">Care<span class="text-blue-600">Hive</span> Portal</span>
         </a>
-        <a href="/dashboard" class="btn btn-outline">← Dashboard</a>
+        <a href="/dashboard" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back to Dashboard</a>
     </nav>
-    <div class="container" style="max-width: 500px; margin-top: 2rem; margin-bottom: 3rem;">
-        <div class="card">
-            <h2 style="text-align: center; margin-bottom: 0.5rem;"><i class="fa-solid fa-user-gear"></i> Account Settings</h2>
-            <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem;">Update your profile details and password</p>
-            {% if message %} <div class="success-alert">{{ message }}</div> {% endif %}
-            <form action="/settings" method="POST">
-                <div class="form-group">
-                    <label>Email Address (Cannot be changed)</label>
-                    <input type="email" value="{{ user['email'] }}" disabled style="background:#f1f5f9; cursor:not-allowed;">
+    <div class="max-w-md w-full mx-auto p-6 my-8">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <h2 class="text-2xl font-bold text-slate-900 text-center mb-1"><i class="fa-solid fa-user-gear text-blue-600 mr-2"></i>Account Settings</h2>
+            <p class="text-xs text-slate-500 text-center mb-6">Update your profile details and password</p>
+            {% if message %} <div class="bg-emerald-50 text-emerald-800 text-xs p-3 rounded-xl mb-4 border border-emerald-200">{{ message }}</div> {% endif %}
+            <form action="/settings" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Address</label>
+                    <input type="email" value="{{ user['email'] }}" disabled class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-slate-100 text-slate-500 cursor-not-allowed">
                 </div>
-                <div class="form-group">
-                    <label>Full Name</label>
-                    <input type="text" name="fullname" value="{{ user['fullname'] }}" required>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Full Name</label>
+                    <input type="text" name="fullname" value="{{ user['fullname'] }}" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
-                <div class="form-group">
-                    <label>New Password (Leave blank to keep current)</label>
-                    <input type="password" name="password" placeholder="••••••••">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">New Password (Optional)</label>
+                    <input type="password" name="password" placeholder="••••••••" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
-                <button type="submit" class="btn" style="width: 100%; justify-content: center;">Save Changes</button>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Save Changes</button>
             </form>
         </div>
     </div>
+    <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
 </body>
 </html>
 """
@@ -854,13 +1146,19 @@ DASHBOARD_HTML = """
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar Navigation -->
-        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between hidden md:flex">
+        <div id="sidebar-backdrop" onclick="toggleSidebar(false)" class="hidden fixed inset-0 bg-slate-900/60 z-30 md:hidden"></div>
+
+        <aside id="dashboard-sidebar" class="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 transition-transform duration-300">
             <div>
-                <div class="p-6 border-b border-slate-800 flex flex-col items-center text-center gap-3">
+                <div class="p-6 border-b border-slate-800 flex flex-col items-center text-center gap-3 relative">
+                    <button onclick="toggleSidebar(false)" class="md:hidden absolute top-3 right-3 text-slate-400 hover:text-white p-1" aria-label="Close menu">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
                     <img src="/static/images/{{ 'company logo.jpeg'|url_encode_path }}" class="w-20 h-20 rounded-xl object-contain bg-white p-1 border" onerror="this.src='https://placehold.co/100x100?text=CH';">
                     <div>
                         <h2 class="font-black text-white text-lg tracking-wide">CAREHIVE</h2>
@@ -879,8 +1177,13 @@ DASHBOARD_HTML = """
                         <i class="fa-solid fa-calendar-check w-5 text-blue-400"></i> Appointments Table
                     </a>
                     {% endif %}
+                    {% if perms.get('view_files') %}
+                    <a href="/files" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
+                        <i class="fa-solid fa-folder-open w-5 text-yellow-400"></i> Files & PDF Tickets
+                    </a>
+                    {% endif %}
                     <a href="/" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
-                        <i class="fa-solid fa-globe w-5 text-indigo-400"></i> Public Website
+                        <i class="fa-solid fa-globe w-5 text-emerald-400"></i> Public Website
                     </a>
                 </nav>
             </div>
@@ -900,27 +1203,30 @@ DASHBOARD_HTML = """
             </div>
         </aside>
 
-        <!-- Main Dashboard View -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
-            <header class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
-                    <p class="text-xs text-slate-500">Welcome back, {{ session['user']['fullname'] }}</p>
+        <div class="flex-1 flex flex-col overflow-y-auto min-w-0">
+            <header class="bg-white border-b border-slate-200 px-4 sm:px-8 py-4 flex justify-between items-center sticky top-0 z-20">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar(true)" class="md:hidden text-slate-600 hover:text-blue-600 p-2 -ml-2" aria-label="Open menu">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Dashboard Overview</h1>
+                        <p class="text-xs text-slate-500 hidden sm:block">Welcome back, {{ session['user']['fullname'] }}</p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <a href="/settings" class="text-xs font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border">
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <a href="/settings" class="hidden sm:flex text-xs font-semibold text-slate-600 hover:text-blue-600 items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border">
                         <i class="fa-solid fa-gear"></i> Settings
                     </a>
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider
                         {% if session['user']['role'] == 'admin' %} bg-purple-100 text-purple-800 border border-purple-200 {% else %} bg-blue-100 text-blue-800 border border-blue-200 {% endif %}">
                         <i class="fa-solid {% if session['user']['role'] == 'admin' %}fa-shield-halved{% else %}fa-user{% endif %}"></i>
-                        {{ session['user']['role'] }}
+                        {% if session['user']['role'] == 'admin' and session['user']['email'] == 'admin@carehive.com' %}Master Admin{% else %}{{ session['user']['role'] }}{% endif %}
                     </span>
                 </div>
             </header>
 
-            <main class="p-8 space-y-8">
-                <!-- Live Session Monitoring Banner -->
+            <main class="p-4 sm:p-8 space-y-8">
                 <div class="bg-slate-900 text-white p-5 rounded-2xl shadow-lg border border-slate-800 flex flex-wrap justify-between items-center gap-4">
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-xl flex items-center justify-center text-xl border border-blue-500/30">
@@ -946,8 +1252,7 @@ DASHBOARD_HTML = """
                 </div>
 
                 {% if session['user']['role'] == 'admin' %}
-                <!-- Admin Key Metrics -->
-                <div class="grid md:grid-cols-3 gap-6">
+                <div class="grid sm:grid-cols-3 gap-4 sm:gap-6">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Appointments</p>
@@ -977,7 +1282,6 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
-                <!-- Analytics Charts -->
                 <div class="grid lg:grid-cols-3 gap-6">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
                         <h3 class="font-bold text-slate-900 mb-4"><i class="fa-solid fa-chart-line text-blue-600 mr-2"></i> Appointments Trend</h3>
@@ -1002,20 +1306,82 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
-                <!-- Admin Worker Onboarding Form -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Create Worker Account</h3>
-                    <form action="/admin/create-worker" method="POST" class="grid md:grid-cols-3 gap-4">
-                        <input type="text" name="fullname" required placeholder="Worker Full Name" class="p-3 border rounded-xl">
-                        <input type="email" name="email" required placeholder="Worker Email" class="p-3 border rounded-xl">
-                        <input type="password" name="password" required placeholder="Default Password" class="p-3 border rounded-xl">
-                        <button type="submit" class="md:col-span-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition">Add Care Worker</button>
+                    <form action="/admin/create-worker" method="POST" class="space-y-4">
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <input type="text" name="fullname" required placeholder="Worker Full Name" class="p-3 border border-slate-200 rounded-xl text-sm">
+                            <input type="email" name="email" required placeholder="Worker Email" class="p-3 border border-slate-200 rounded-xl text-sm">
+                            <input type="password" name="password" required placeholder="Default Password" class="p-3 border border-slate-200 rounded-xl text-sm">
+                        </div>
+                        <div class="flex flex-wrap gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <span class="text-xs font-bold uppercase text-slate-500 w-full mb-1">Permissions for this account</span>
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_appointments" checked class="rounded"> View bookings</label>
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_create_bookings" checked class="rounded"> Create bookings</label>
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_view_files" checked class="rounded"> View files / PDFs</label>
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="perm_manage_staff" class="rounded"> Manage staff accounts</label>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Add Care Worker</button>
                     </form>
                 </div>
 
-                <!-- System Logs Table -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-user-nurse text-emerald-600 mr-2"></i> Staff on Duty & Permissions</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b">
+                                <tr>
+                                    <th class="p-4">Name</th>
+                                    <th class="p-4">Email</th>
+                                    <th class="p-4">Role</th>
+                                    <th class="p-4">Permissions</th>
+                                    <th class="p-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {% for staff in staff_members %}
+                                <tr>
+                                    <td class="p-4 font-medium text-slate-900">{{ staff['name'] }}</td>
+                                    <td class="p-4">{{ staff['email'] }}</td>
+                                    <td class="p-4">
+                                        {% if staff['email'] == 'admin@carehive.com' %}
+                                        <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">Master Admin</span>
+                                        {% else %}
+                                        <span class="bg-purple-100 text-purple-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">{{ staff['role'] }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-4 text-xs">
+                                        {% if staff['email'] == 'admin@carehive.com' %}
+                                        <span class="text-slate-400 italic">Full access (fixed)</span>
+                                        {% else %}
+                                        <form action="/admin/update-permissions" method="POST" class="flex flex-wrap gap-3 items-center">
+                                            <input type="hidden" name="email" value="{{ staff['email'] }}">
+                                            <label class="flex items-center gap-1"><input type="checkbox" name="perm_view_appointments" onchange="this.form.requestSubmit()" {% if staff['permissions']['view_appointments'] %}checked{% endif %}> Bookings</label>
+                                            <label class="flex items-center gap-1"><input type="checkbox" name="perm_create_bookings" onchange="this.form.requestSubmit()" {% if staff['permissions']['create_bookings'] %}checked{% endif %}> Create</label>
+                                            <label class="flex items-center gap-1"><input type="checkbox" name="perm_view_files" onchange="this.form.requestSubmit()" {% if staff['permissions']['view_files'] %}checked{% endif %}> Files</label>
+                                            <label class="flex items-center gap-1"><input type="checkbox" name="perm_manage_staff" onchange="this.form.requestSubmit()" {% if staff['permissions']['manage_staff'] %}checked{% endif %}> Manage staff</label>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-4">
+                                        {% if staff['email'] != 'admin@carehive.com' %}
+                                        <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Remove this account?');">
+                                            <input type="hidden" name="email" value="{{ staff['email'] }}">
+                                            <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Remove</button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-list-check text-indigo-600 mr-2"></i> Activity Audit Logs</h3>
                     </div>
                     <div class="overflow-x-auto">
@@ -1041,74 +1407,81 @@ DASHBOARD_HTML = """
                 </div>
 
                 <script>
-                    const chartData = {{ chart_data|tojson }};
-                    const palette = ['#2563eb', '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899'];
+                    const chartData = {{ chart_data|tojson|safe }};
+                    const palette = ['#2c7be5', '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'];
 
-                    new Chart(document.getElementById('trendChart'), {
-                        type: 'line',
-                        data: {
-                            labels: chartData.appointments_trend.labels,
-                            datasets: [{
-                                label: 'Appointments',
-                                data: chartData.appointments_trend.values,
-                                borderColor: '#2563eb',
-                                backgroundColor: 'rgba(37,99,235,0.1)',
-                                tension: 0.35,
-                                fill: true,
-                                pointRadius: 3
-                            }]
-                        },
-                        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-                    });
+                    if (chartData.appointments_trend && chartData.appointments_trend.values.length) {
+                        new Chart(document.getElementById('trendChart'), {
+                            type: 'line',
+                            data: {
+                                labels: chartData.appointments_trend.labels,
+                                datasets: [{
+                                    data: chartData.appointments_trend.values,
+                                    borderColor: '#2c7be5',
+                                    backgroundColor: 'rgba(44,123,229,0.1)',
+                                    tension: 0.35,
+                                    fill: true
+                                }]
+                            },
+                            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                        });
+                    }
 
-                    new Chart(document.getElementById('ratingChart'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: chartData.reviews_by_rating.labels.map(r => r + ' ★'),
-                            datasets: [{ data: chartData.reviews_by_rating.values, backgroundColor: palette }]
-                        },
-                        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
-                    });
+                    if (chartData.reviews_by_rating && chartData.reviews_by_rating.values.length) {
+                        new Chart(document.getElementById('ratingChart'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: chartData.reviews_by_rating.labels.map(r => r + ' ★'),
+                                datasets: [{ data: chartData.reviews_by_rating.values, backgroundColor: palette }]
+                            },
+                            options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+                        });
+                    }
 
-                    new Chart(document.getElementById('serviceChart'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: chartData.appointments_by_service.labels,
-                            datasets: [{ data: chartData.appointments_by_service.values, backgroundColor: palette }]
-                        },
-                        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
-                    });
+                    if (chartData.appointments_by_service && chartData.appointments_by_service.values.length) {
+                        new Chart(document.getElementById('serviceChart'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: chartData.appointments_by_service.labels,
+                                datasets: [{ data: chartData.appointments_by_service.values, backgroundColor: palette }]
+                            },
+                            options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+                        });
+                    }
 
-                    new Chart(document.getElementById('locationChart'), {
-                        type: 'bar',
-                        data: {
-                            labels: chartData.appointments_by_location.labels,
-                            datasets: [{ label: 'Appointments', data: chartData.appointments_by_location.values, backgroundColor: '#10b981', borderRadius: 6 }]
-                        },
-                        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-                    });
+                    if (chartData.appointments_by_location && chartData.appointments_by_location.values.length) {
+                        new Chart(document.getElementById('locationChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: chartData.appointments_by_location.labels,
+                                datasets: [{ data: chartData.appointments_by_location.values, backgroundColor: '#10b981', borderRadius: 6 }]
+                            },
+                            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                        });
+                    }
 
-                    new Chart(document.getElementById('roleChart'), {
-                        type: 'bar',
-                        data: {
-                            labels: chartData.users_by_role.labels,
-                            datasets: [{ label: 'Users', data: chartData.users_by_role.values, backgroundColor: '#8b5cf6', borderRadius: 6 }]
-                        },
-                        options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
-                    });
+                    if (chartData.users_by_role && chartData.users_by_role.values.length) {
+                        new Chart(document.getElementById('roleChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: chartData.users_by_role.labels,
+                                datasets: [{ data: chartData.users_by_role.values, backgroundColor: '#8b5cf6', borderRadius: 6 }]
+                            },
+                            options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+                        });
+                    }
                 </script>
                 {% else %}
-                <!-- Dedicated User / Client Portal Section -->
                 <div class="grid md:grid-cols-3 gap-6">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 md:col-span-2">
                         <h2 class="text-2xl font-bold text-slate-900 mb-2">Welcome to Your Carehive Portal</h2>
-                        <p class="text-slate-600 text-sm mb-6">Manage your home healthcare requests, update your profile details, or book new medical visits.</p>
+                        <p class="text-slate-600 text-sm mb-6">Manage your home healthcare requests, update your profile details, or book new care visits.</p>
                         <div class="flex flex-wrap gap-4">
-                            <a href="/#register" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm inline-flex items-center gap-2">
-                                <i class="fa-solid fa-calendar-plus"></i> Book Care Visit
+                            <a href="/#services" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm">
+                                Book Care Visit
                             </a>
-                            <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm inline-flex items-center gap-2">
-                                <i class="fa-solid fa-user-gear"></i> Account Settings
+                            <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm">
+                                Account Settings
                             </a>
                         </div>
                     </div>
@@ -1124,32 +1497,39 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
-                <!-- User Quick Activity History -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-clock-rotate-left text-blue-600 mr-2"></i> Recent Account Activity</h3>
                     </div>
                     <div class="p-6">
-                        {% if logs %}
-                            <ul class="divide-y divide-slate-100 text-sm">
-                                {% for log in logs %}
-                                    {% if log['email'] == session['user']['email'] %}
-                                    <li class="py-3 flex justify-between items-center">
-                                        <span class="font-medium text-slate-800">{{ log['action'] }}</span>
-                                        <span class="text-xs font-mono text-slate-400">{{ log['timestamp'] }}</span>
-                                    </li>
-                                    {% endif %}
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-xs text-slate-400 italic">No recent activity logged.</p>
-                        {% endif %}
+                        <ul class="divide-y divide-slate-100 text-sm">
+                            {% for log in logs %}
+                            <li class="py-3 flex justify-between items-center">
+                                <span class="font-medium text-slate-800">{{ log['action'] }}</span>
+                                <span class="text-xs font-mono text-slate-400">{{ log['timestamp'] }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
                 {% endif %}
             </main>
         </div>
     </div>
+
+    <script>
+        function toggleSidebar(open) {
+            const sidebar = document.getElementById('dashboard-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            if (open) {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+            }
+        }
+    </script>
 </body>
 </html>
 """
@@ -1163,6 +1543,8 @@ ADMIN_APPOINTMENTS_HTML = """
     <title>Appointments | Carehive Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
     <div class="max-w-7xl mx-auto p-8">
@@ -1174,17 +1556,20 @@ ADMIN_APPOINTMENTS_HTML = """
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-xs uppercase font-semibold text-slate-400 border-b">
                     <tr>
+                        <th class="p-4">Reference</th>
                         <th class="p-4">Client Name</th>
                         <th class="p-4">Phone</th>
                         <th class="p-4">Service</th>
                         <th class="p-4">Location & GPS Pin</th>
                         <th class="p-4">Preferred Date</th>
                         <th class="p-4">Notes</th>
+                        <th class="p-4">Ticket</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                     {% for appt in appointments %}
                     <tr>
+                        <td class="p-4 font-mono text-xs font-bold text-blue-700">{{ appt['reference'] or '—' }}</td>
                         <td class="p-4 font-bold text-slate-900">{{ appt['full_name'] }}</td>
                         <td class="p-4">{{ appt['phone'] }}</td>
                         <td class="p-4"><span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">{{ appt['service'] }}</span></td>
@@ -1198,7 +1583,67 @@ ADMIN_APPOINTMENTS_HTML = """
                         </td>
                         <td class="p-4 font-mono text-xs">{{ appt['preferred_date'] }}</td>
                         <td class="p-4 text-xs italic">{{ appt['notes'] }}</td>
+                        <td class="p-4">
+                            {% if appt['reference'] %}
+                            <a href="/ticket/{{ appt['reference'] }}" target="_blank" class="text-xs font-semibold text-blue-600 hover:underline"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</a>
+                            {% endif %}
+                        </td>
                     </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+FILES_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Files | Carehive Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <div class="max-w-5xl mx-auto p-8">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">Files</h1>
+                <p class="text-sm text-slate-500">Every generated booking PDF ticket, with its barcode and reference.</p>
+            </div>
+            <a href="/dashboard" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-slate-900">← Back to Dashboard</a>
+        </div>
+        <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+            <table class="w-full text-left text-sm text-slate-600">
+                <thead class="bg-slate-50 text-xs uppercase font-semibold text-slate-400 border-b">
+                    <tr>
+                        <th class="p-4">File</th>
+                        <th class="p-4">Reference</th>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Created</th>
+                        <th class="p-4"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for f in files %}
+                    <tr>
+                        <td class="p-4 font-medium text-slate-900">{{ f['reference'] }}.pdf</td>
+                        <td class="p-4 font-mono text-xs text-blue-700">{{ f['reference'] }}</td>
+                        <td class="p-4">{{ f['full_name'] }}</td>
+                        <td class="p-4 text-xs font-mono">{{ f['created_at'] }}</td>
+                        <td class="p-4">
+                            <a href="/ticket/{{ f['reference'] }}" target="_blank" class="text-xs font-semibold text-blue-600 hover:underline mr-3"><i class="fa-solid fa-eye mr-1"></i>View</a>
+                            <a href="/ticket/{{ f['reference'] }}?download=1" class="text-xs font-semibold text-emerald-600 hover:underline"><i class="fa-solid fa-download mr-1"></i>Download</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="p-8 text-center text-slate-400">No files yet — these are created automatically whenever someone books an appointment.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -1210,19 +1655,149 @@ ADMIN_APPOINTMENTS_HTML = """
 
 
 # ---------------------------------------------------------
+# Booking reference / barcode / PDF generation helpers
+# ---------------------------------------------------------
+import random
+import string
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.pagesizes import A6
+from reportlab.graphics.barcode import code128
+
+TICKETS_DIR = os.path.join('static', 'tickets')
+
+
+def generate_reference(appointment_id: int) -> str:
+    """Generates a unique, human-readable booking reference."""
+    rand_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"CH-{appointment_id:05d}-{rand_suffix}"
+
+
+def build_ticket_pdf(appointment: dict) -> str:
+    """
+    Builds a PDF ticket containing the booking details and a Code128 barcode
+    encoding the reference number. Returns the relative file path.
+    """
+    os.makedirs(TICKETS_DIR, exist_ok=True)
+    reference = appointment['reference']
+    file_path = os.path.join(TICKETS_DIR, f"{reference}.pdf")
+
+    width, height = A6  # small ticket-sized page
+    c = pdfcanvas.Canvas(file_path, pagesize=A6)
+
+    # Header band
+    c.setFillColorRGB(0.09, 0.13, 0.17)
+    c.rect(0, height - 60, width, 60, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(16, height - 38, "Carehive Homecare Limited")
+    c.setFont('Helvetica', 8)
+    c.drawString(16, height - 52, "Booking Confirmation Ticket")
+
+    # Body details
+    c.setFillColorRGB(0.1, 0.1, 0.1)
+    y = height - 85
+    line_height = 16
+
+    def draw_line(label, value):
+        nonlocal y
+        c.setFont('Helvetica-Bold', 8.5)
+        c.drawString(16, y, label)
+        c.setFont('Helvetica', 8.5)
+        c.drawString(95, y, str(value) if value else '-')
+        y -= line_height
+
+    draw_line("Reference:", reference)
+    draw_line("Customer:", appointment['full_name'])
+    draw_line("Phone:", appointment['phone'])
+    draw_line("Service:", appointment['service'])
+    draw_line("Date:", appointment['preferred_date'])
+    draw_line("Location:", appointment['location'])
+    if appointment.get('notes'):
+        draw_line("Notes:", appointment['notes'][:60])
+
+    # Barcode (Code128) encoding the reference number
+    barcode = code128.Code128(reference, barHeight=16 * 2.834, barWidth=0.9)
+    barcode_x = (width - barcode.width) / 2
+    barcode_y = 34
+    barcode.drawOn(c, barcode_x, barcode_y)
+
+    c.setFont('Helvetica', 7)
+    c.drawCentredString(width / 2, 20, reference)
+
+    c.showPage()
+    c.save()
+    return file_path
+
+
+def create_booking_ticket(appointment_id: int, appointment_row) -> str:
+    """Generates the reference + PDF for a newly created appointment and saves it to the DB."""
+    appointment = dict(appointment_row)
+    reference = generate_reference(appointment_id)
+    appointment['reference'] = reference
+    build_ticket_pdf(appointment)
+
+    conn = get_db_connection()
+    conn.execute('UPDATE appointments SET reference = ? WHERE id = ?', (reference, appointment_id))
+    conn.commit()
+    conn.close()
+    return reference
+
+
+# ---------------------------------------------------------
+# Permissions helpers
+# ---------------------------------------------------------
+import json
+
+DEFAULT_STAFF_PERMISSIONS = {
+    "view_appointments": True,
+    "create_bookings": True,
+    "view_files": True,
+    "manage_staff": False,
+}
+
+
+def get_permissions_for_session_user():
+    """Returns the effective permissions dict for the currently logged-in user."""
+    if 'user' not in session:
+        return {}
+    if session['user']['role'] == 'admin':
+        return {"view_appointments": True, "create_bookings": True, "view_files": True, "manage_staff": True}
+    conn = get_db_connection()
+    row = conn.execute('SELECT permissions FROM users WHERE email = ?', (session['user']['email'],)).fetchone()
+    conn.close()
+    if row and row['permissions']:
+        try:
+            return json.loads(row['permissions'])
+        except (ValueError, TypeError):
+            return dict(DEFAULT_STAFF_PERMISSIONS)
+    return dict(DEFAULT_STAFF_PERMISSIONS)
+
+
+def require_permission(key):
+    """Returns True if the logged-in user is allowed to use a feature gated by `key`."""
+    if 'user' not in session:
+        return False
+    if session['user']['role'] == 'admin':
+        return True
+    return get_permissions_for_session_user().get(key, False)
+
+
+# ---------------------------------------------------------
 # Application Routes
 # ---------------------------------------------------------
 @app.before_request
 def update_last_active():
     if 'user' in session:
         email = session['user']['email']
-        if email in USER_STATUS:
-            USER_STATUS[email]['last_active'] = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if email not in USER_STATUS:
+            USER_STATUS[email] = {'login_time': now, 'last_active': now, 'status': 'Active Online'}
+        else:
+            USER_STATUS[email]['last_active'] = now
 
 
 @app.route('/api/uganda-geo')
 def get_uganda_geo():
-    """API endpoint exposing the Uganda taxonomy data to frontend scripts."""
     return jsonify(uganda_geo.to_dict())
 
 
@@ -1231,7 +1806,8 @@ def home():
     conn = get_db_connection()
     reviews = conn.execute('SELECT * FROM reviews ORDER BY id DESC').fetchall()
     conn.close()
-    return render_template_string(INDEX_HTML, reviews=reviews)
+    booking_reference = request.args.get('ref')
+    return render_template_string(INDEX_HTML, reviews=reviews, booking_reference=booking_reference)
 
 
 @app.route('/register', methods=['POST'])
@@ -1239,23 +1815,59 @@ def register_appointment():
     conn = get_db_connection()
     lat = request.form.get('latitude')
     lng = request.form.get('longitude')
-    
-    conn.execute(
+
+    cursor = conn.cursor()
+    cursor.execute(
         'INSERT INTO appointments (full_name, phone, service, location, latitude, longitude, preferred_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         (
-            request.form['full_name'],
-            request.form['phone'],
-            request.form['service'],
-            request.form['location'],
+            request.form.get('full_name', '').strip(),
+            request.form.get('phone', '').strip(),
+            request.form.get('service', '').strip(),
+            request.form.get('location', '').strip(),
             float(lat) if lat else None,
             float(lng) if lng else None,
-            request.form['preferred_date'],
-            request.form.get('notes', '')
+            request.form.get('preferred_date', '').strip(),
+            request.form.get('notes', '').strip()
         )
     )
+    appointment_id = cursor.lastrowid
     conn.commit()
+
+    appointment_row = conn.execute('SELECT * FROM appointments WHERE id = ?', (appointment_id,)).fetchone()
     conn.close()
-    return redirect(url_for('home'))
+
+    reference = create_booking_ticket(appointment_id, appointment_row)
+    log_activity(request.form.get('phone', 'guest'), f"New booking created — reference {reference}")
+
+    return redirect(url_for('home', ref=reference))
+
+
+@app.route('/ticket/<reference>')
+def view_ticket(reference):
+    """Serves the generated PDF ticket for a booking by its reference number."""
+    from flask import send_file, abort
+    safe_reference = ''.join(c for c in reference if c.isalnum() or c in '-_')
+    file_path = os.path.join(TICKETS_DIR, f"{safe_reference}.pdf")
+    if not os.path.isfile(file_path):
+        abort(404, description="Ticket not found.")
+    as_attachment = request.args.get('download') == '1'
+    return send_file(file_path, mimetype='application/pdf', as_attachment=as_attachment,
+                      download_name=f"{safe_reference}.pdf")
+
+
+@app.route('/files')
+def files_list():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    if not require_permission('view_files'):
+        return redirect(url_for('dashboard'))
+
+    conn = get_db_connection()
+    files = conn.execute(
+        "SELECT reference, full_name, created_at FROM appointments WHERE reference IS NOT NULL ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+    return render_template_string(FILES_HTML, files=files)
 
 
 @app.route('/review', methods=['POST'])
@@ -1268,7 +1880,11 @@ def add_review():
     conn = get_db_connection()
     conn.execute(
         'INSERT INTO reviews (client_name, rating, comment) VALUES (?, ?, ?)',
-        (request.form['client_name'], rating, request.form['comment'])
+        (
+            request.form.get('client_name', '').strip(),
+            rating,
+            request.form.get('comment', '').strip()
+        )
     )
     conn.commit()
     conn.close()
@@ -1278,24 +1894,31 @@ def add_review():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        email = request.form.get('email')
-        fullname = request.form.get('fullname')
-        hashed_pw = generate_password_hash(request.form.get('password'))
+        email = request.form.get('email', '').strip().lower()
+        fullname = request.form.get('fullname', '').strip()
+        password = request.form.get('password', '')
+
+        if not email or not fullname or not password:
+            return render_template_string(SIGNUP_HTML, error="All fields are required.")
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        try:
-            cursor.execute('INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)', (email, fullname, 'client', hashed_pw))
-            conn.commit()
-        except sqlite3.IntegrityError:
+        cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
+        if cursor.fetchone():
             conn.close()
-            return render_template_string(SIGNUP_HTML, error="An account with this email already exists.")
+            return render_template_string(SIGNUP_HTML, error="Email already registered.")
+
+        hashed_pw = generate_password_hash(password)
+        cursor.execute(
+            'INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)',
+            (email, fullname, 'client', hashed_pw)
+        )
+        conn.commit()
         conn.close()
 
-        now = datetime.now(timezone.utc)
-        USER_STATUS[email] = {'login_time': now, 'last_active': now, 'status': 'Active Online'}
-        session['user'] = {'fullname': fullname, 'role': 'client', 'email': email}
-        log_activity(email, "Client Registered Account")
+        log_activity(email, "Registered new client account")
+        session['user'] = {'email': email, 'fullname': fullname, 'role': 'client'}
+        USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
         return redirect(url_for('dashboard'))
 
     return render_template_string(SIGNUP_HTML)
@@ -1304,24 +1927,34 @@ def signup():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT name, role, password FROM users WHERE email = ?', (email,))
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
         user = cursor.fetchone()
         conn.close()
 
         if user and check_password_hash(user['password'], password):
-            now = datetime.now(timezone.utc)
-            USER_STATUS[email] = {'login_time': now, 'last_active': now, 'status': 'Active Online'}
-            session['user'] = {'fullname': user['name'], 'role': user['role'], 'email': email}
-            log_activity(email, "User Logged In")
+            session['user'] = {'email': user['email'], 'fullname': user['name'], 'role': user['role']}
+            USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
+            log_activity(email, f"Logged in as {user['role']}")
             return redirect(url_for('dashboard'))
 
         return render_template_string(LOGIN_HTML, error="Invalid email or password.")
+
     return render_template_string(LOGIN_HTML)
+
+
+@app.route('/logout')
+def logout():
+    if 'user' in session:
+        email = session['user']['email']
+        log_activity(email, "Logged out of portal")
+        USER_STATUS[email] = {'status': 'Logged Out'}
+        session.pop('user', None)
+    return redirect(url_for('home'))
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -1330,39 +1963,32 @@ def settings():
         return redirect(url_for('login'))
 
     email = session['user']['email']
+    conn = get_db_connection()
     message = None
 
     if request.method == 'POST':
-        new_name = request.form.get('fullname')
-        new_pw = request.form.get('password')
+        fullname = request.form.get('fullname', '').strip()
+        new_password = request.form.get('password', '')
 
-        conn = get_db_connection()
-        if new_pw and new_pw.strip():
-            hashed = generate_password_hash(new_pw)
-            conn.execute('UPDATE users SET name = ?, password = ? WHERE email = ?', (new_name, hashed, email))
+        cursor = conn.cursor()
+        if new_password:
+            hashed_pw = generate_password_hash(new_password)
+            cursor.execute('UPDATE users SET name = ?, password = ? WHERE email = ?', (fullname, hashed_pw, email))
         else:
-            conn.execute('UPDATE users SET name = ? WHERE email = ?', (new_name, email))
-        
+            cursor.execute('UPDATE users SET name = ? WHERE email = ?', (fullname, email))
         conn.commit()
-        conn.close()
 
-        session['user']['fullname'] = new_name
-        log_activity(email, "Updated Account Settings")
-        message = "Profile updated successfully!"
+        session['user']['fullname'] = fullname
+        log_activity(email, "Updated account settings")
+        message = "Account settings successfully updated!"
 
-    user_info = {'email': email, 'fullname': session['user']['fullname']}
-    return render_template_string(SETTINGS_HTML, user=user_info, message=message)
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+    db_user = cursor.fetchone()
+    conn.close()
 
-
-@app.route('/logout')
-def logout():
-    if 'user' in session:
-        email = session['user']['email']
-        log_activity(email, "User Logged Out")
-        if email in USER_STATUS:
-            USER_STATUS[email]['status'] = 'Logged Out'
-        session.pop('user', None)
-    return redirect(url_for('home'))
+    user_data = {'email': db_user['email'], 'fullname': db_user['name']}
+    return render_template_string(SETTINGS_HTML, user=user_data, message=message)
 
 
 @app.route('/dashboard')
@@ -1371,76 +1997,104 @@ def dashboard():
         return redirect(url_for('login'))
 
     email = session['user']['email']
-    activity_info = get_user_activity_info(email)
+    activity = get_user_activity_info(email)
+    perms = get_permissions_for_session_user()
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
-    logs = cursor.fetchall()
 
-    cursor.execute('SELECT COUNT(*) FROM appointments')
-    total_appointments = cursor.fetchone()[0]
-
-    cursor.execute('SELECT COUNT(*) FROM users')
-    total_users = cursor.fetchone()[0]
-
-    cursor.execute('SELECT COUNT(*) FROM reviews')
-    total_reviews = cursor.fetchone()[0]
-
+    stats = {}
     chart_data = {}
+    logs = []
+    staff_members = []
+
     if session['user']['role'] == 'admin':
-        cursor.execute('SELECT service, COUNT(*) as c FROM appointments GROUP BY service ORDER BY c DESC')
-        rows = cursor.fetchall()
-        chart_data['appointments_by_service'] = {
-            'labels': [r['service'] for r in rows],
-            'values': [r['c'] for r in rows]
-        }
+        cursor.execute('SELECT COUNT(*) FROM appointments')
+        stats['appointments'] = cursor.fetchone()[0]
 
-        cursor.execute('SELECT location, COUNT(*) as c FROM appointments GROUP BY location ORDER BY c DESC LIMIT 8')
-        rows = cursor.fetchall()
-        chart_data['appointments_by_location'] = {
-            'labels': [r['location'] for r in rows],
-            'values': [r['c'] for r in rows]
-        }
+        cursor.execute('SELECT COUNT(*) FROM users')
+        stats['users'] = cursor.fetchone()[0]
 
-        cursor.execute('''
-            SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as c
-            FROM appointments
-            GROUP BY day
-            ORDER BY day ASC
-            LIMIT 14
-        ''')
-        rows = cursor.fetchall()
+        cursor.execute('SELECT COUNT(*) FROM reviews')
+        stats['reviews'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT name, email, role, permissions FROM users WHERE role IN ('admin', 'staff')")
+        staff_rows = cursor.fetchall()
+        staff_members = []
+        for row in staff_rows:
+            item = dict(row)
+            try:
+                item['permissions'] = json.loads(item['permissions']) if item['permissions'] else dict(DEFAULT_STAFF_PERMISSIONS)
+            except (ValueError, TypeError):
+                item['permissions'] = dict(DEFAULT_STAFF_PERMISSIONS)
+            staff_members.append(item)
+
+        cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
+        logs = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("SELECT preferred_date, COUNT(*) FROM appointments GROUP BY preferred_date ORDER BY preferred_date ASC")
+        trend_rows = cursor.fetchall()
         chart_data['appointments_trend'] = {
-            'labels': [r['day'] for r in rows],
-            'values': [r['c'] for r in rows]
+            'labels': [row[0] for row in trend_rows],
+            'values': [row[1] for row in trend_rows]
         }
 
-        cursor.execute('SELECT role, COUNT(*) as c FROM users GROUP BY role')
-        rows = cursor.fetchall()
-        chart_data['users_by_role'] = {
-            'labels': [r['role'] for r in rows],
-            'values': [r['c'] for r in rows]
-        }
-
-        cursor.execute('SELECT rating, COUNT(*) as c FROM reviews GROUP BY rating ORDER BY rating ASC')
-        rows = cursor.fetchall()
-        rating_counts = {str(i): 0 for i in range(1, 6)}
-        for r in rows:
-            rating_counts[str(r['rating'])] = r['c']
+        cursor.execute("SELECT rating, COUNT(*) FROM reviews GROUP BY rating ORDER BY rating DESC")
+        rating_rows = cursor.fetchall()
         chart_data['reviews_by_rating'] = {
-            'labels': list(rating_counts.keys()),
-            'values': list(rating_counts.values())
+            'labels': [str(row[0]) for row in rating_rows],
+            'values': [row[1] for row in rating_rows]
+        }
+        
+        cursor.execute("SELECT AVG(rating) FROM reviews")
+        avg_r = cursor.fetchone()[0]
+        chart_data['avg_rating'] = round(avg_r, 1) if avg_r else 5.0
+
+        cursor.execute("SELECT service, COUNT(*) FROM appointments GROUP BY service ORDER BY COUNT(*) DESC")
+        service_rows = cursor.fetchall()
+        chart_data['appointments_by_service'] = {
+            'labels': [row[0] for row in service_rows],
+            'values': [row[1] for row in service_rows]
         }
 
-        cursor.execute('SELECT AVG(rating) as avg FROM reviews')
-        avg_row = cursor.fetchone()
-        chart_data['avg_rating'] = round(avg_row['avg'], 2) if avg_row['avg'] is not None else 0
+        cursor.execute("SELECT location FROM appointments")
+        loc_rows = cursor.fetchall()
+        loc_counts = {}
+        for row in loc_rows:
+            loc_str = row[0] or ''
+            parts = [p.strip() for p in loc_str.split(',')]
+            district = parts[-1] if parts else 'Unknown'
+            if 'Live GPS Location' in district or '(' in district:
+                district = 'GPS Pinned Location'
+            loc_counts[district] = loc_counts.get(district, 0) + 1
+        
+        sorted_locs = sorted(loc_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+        chart_data['appointments_by_location'] = {
+            'labels': [item[0] for item in sorted_locs],
+            'values': [item[1] for item in sorted_locs]
+        }
+
+        cursor.execute("SELECT role, COUNT(*) FROM users GROUP BY role")
+        role_rows = cursor.fetchall()
+        chart_data['users_by_role'] = {
+            'labels': [row[0].title() for row in role_rows],
+            'values': [row[1] for row in role_rows]
+        }
+
+    else:
+        cursor.execute('SELECT email, action, timestamp FROM logs WHERE email = ? ORDER BY id DESC LIMIT 20', (email,))
+        logs = [dict(row) for row in cursor.fetchall()]
 
     conn.close()
-
-    stats = {'appointments': total_appointments, 'users': total_users, 'reviews': total_reviews}
-    return render_template_string(DASHBOARD_HTML, logs=logs, activity=activity_info, stats=stats, chart_data=chart_data)
+    return render_template_string(
+        DASHBOARD_HTML,
+        stats=stats,
+        chart_data=chart_data,
+        logs=logs,
+        staff_members=staff_members,
+        activity=activity,
+        perms=perms
+    )
 
 
 @app.route('/admin')
@@ -1455,32 +2109,80 @@ def admin_appointments():
 
 
 @app.route('/admin/create-worker', methods=['POST'])
-def create_worker():
+def admin_create_worker():
     if 'user' not in session or session['user']['role'] != 'admin':
         return redirect(url_for('login'))
 
-    email = request.form.get('email')
-    fullname = request.form.get('fullname')
-    hashed_pw = generate_password_hash(request.form.get('password'))
+    fullname = request.form.get('fullname', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '').strip()
 
-    conn = get_db_connection()
-    try:
-        conn.execute('INSERT INTO users (email, name, role, password) VALUES (?, ?, ?, ?)', (email, fullname, 'worker', hashed_pw))
-        conn.commit()
-        log_activity(session['user']['email'], f"Created Worker Account: {email}")
-    except sqlite3.IntegrityError:
-        pass
-    finally:
+    permissions = {
+        "view_appointments": request.form.get('perm_view_appointments') == 'on',
+        "create_bookings": request.form.get('perm_create_bookings') == 'on',
+        "view_files": request.form.get('perm_view_files') == 'on',
+        "manage_staff": request.form.get('perm_manage_staff') == 'on',
+    }
+
+    if fullname and email and password:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
+        if not cursor.fetchone():
+            hashed_pw = generate_password_hash(password)
+            cursor.execute(
+                'INSERT INTO users (email, name, role, password, permissions) VALUES (?, ?, ?, ?, ?)',
+                (email, fullname, 'staff', hashed_pw, json.dumps(permissions))
+            )
+            conn.commit()
+            log_activity(session['user']['email'], f"Created staff account for {email}")
         conn.close()
 
     return redirect(url_for('dashboard'))
 
 
+@app.route('/admin/update-permissions', methods=['POST'])
+def admin_update_permissions():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    target_email = request.form.get('email', '').strip().lower()
+    if target_email == 'admin@carehive.com':
+        return redirect(url_for('dashboard'))
+
+    permissions = {
+        "view_appointments": request.form.get('perm_view_appointments') == 'on',
+        "create_bookings": request.form.get('perm_create_bookings') == 'on',
+        "view_files": request.form.get('perm_view_files') == 'on',
+        "manage_staff": request.form.get('perm_manage_staff') == 'on',
+    }
+
+    conn = get_db_connection()
+    conn.execute('UPDATE users SET permissions = ? WHERE email = ?', (json.dumps(permissions), target_email))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Updated permissions for {target_email}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/remove-staff', methods=['POST'])
+def admin_remove_staff():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    target_email = request.form.get('email', '').strip().lower()
+    if target_email == 'admin@carehive.com':
+        return redirect(url_for('dashboard'))
+
+    conn = get_db_connection()
+    conn.execute("DELETE FROM users WHERE email = ? AND role != 'admin'", (target_email,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Removed staff account {target_email}")
+    return redirect(url_for('dashboard'))
+
+
 if __name__ == '__main__':
     init_db()
-    print("\n===============================================")
-    print(" CAREHIVE HOMECARE LIMITED APP RUNNING")
-    print(" URL: http://127.0.0.1:5000")
-    print(" Admin Login: admin@carehive.com / admin123")
-    print("===============================================\n")
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    print("Starting Carehive Homecare Limited Flask Application...")
+    app.run(host='0.0.0.0', port=5000, debug=True)
