@@ -444,8 +444,8 @@ INDEX_HTML = """
     <main>
         <section class="relative py-16 lg:py-24 overflow-hidden bg-slate-900 text-white">
             <div class="absolute inset-0 z-0">
-                <img src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-25" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
-                <div class="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-900/70"></div>
+                <img src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-60" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
+                <div class="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/75 to-slate-900/40"></div>
             </div>
             <div class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
                 <div class="space-y-6 text-center lg:text-left">
