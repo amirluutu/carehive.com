@@ -18,7 +18,7 @@ Features:
 import os
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -158,35 +158,21 @@ class UgandaGeographyRegistry:
             }
         return result
 
-# Instantiate global registry and add administrative data across Uganda regions
+# Instantiate global registry, scoped to the major cities/towns Carehive
+# actually serves. Anywhere else is captured via the "Other / Type Your
+# Area" manual entry already built into the booking form.
 uganda_geo = UgandaGeographyRegistry()
-# Central
 uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Ssabagabo", "Kanyanya")
 uganda_geo.add_location("Central", "Kampala", "Central Division", "Nakasero", "Nakasero I")
+uganda_geo.add_location("Central", "Kampala", "Nakawa Division", "Kireka", "Kireka D")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Town", "Kira")
-# Western
-uganda_geo.add_location("Western", "Mbarara", "Kashari County", "Bubaare", "Kashaka")
-uganda_geo.add_location("Western", "Fort Portal", "Central Division", "Bazarwa", "Kabarole")
-# Eastern
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Namugongo Division", "Kinawataka Road")
+uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Central Division", "Mukono Town")
 uganda_geo.add_location("Eastern", "Jinja", "Jinja North", "Bugembe", "Budondo")
-# Northern
-uganda_geo.add_location("Northern", "Gulu", "Laroo Division", "Pece", "Layibi")
-
-# Central Region Districts
-for d in ["Bukomansimbi", "Butambala", "Gomba", "Kalangala", "Kalungu", "Kyotera", "Lwengo", "Lyantonde", "Masaka", "Masaka City", "Mpigi", "Rakai", "Sembabule", "Buikwe", "Buvuma", "Kassanda", "Kayunga", "Kiboga", "Kyankwanzi", "Luwero", "Mityana", "Mubende", "Mukono", "Nakaseke", "Nakasongola"]:
-    uganda_geo.add_district("Central", d)
-
-# Eastern Region Districts
-for d in ["Bugiri", "Bugweri", "Buyende", "Iganga", "Jinja City", "Kaliro", "Kamuli", "Luuka", "Mayuge", "Namayingo", "Namutumba", "Budaka", "Busia", "Butaleja", "Butebo", "Kibuku", "Pallisa", "Tororo", "Bududa", "Bukwo", "Bulambuli", "Kapchorwa", "Kween", "Manafwa", "Mbale", "Mbale City", "Namisindwa", "Sironko", "Amuria", "Bukedea", "Kaberamaido", "Kalaki", "Kapelebyong", "Katakwi", "Kumi", "Ngora", "Serere", "Soroti", "Soroti City"]:
-    uganda_geo.add_district("Eastern", d)
-
-# Northern Region Districts
-for d in ["Abim", "Amudat", "Kaabong", "Karenga", "Kotido", "Moroto", "Nabilatuk", "Nakapiripirit", "Napak", "Alebtong", "Amolatar", "Apac", "Dokolo", "Kole", "Kwania", "Lira", "Lira City", "Otuke", "Oyam", "Agago", "Amuru", "Gulu City", "Kitgum", "Lamwo", "Nwoya", "Omoro", "Pader", "Adjumani", "Arua", "Arua City", "Koboko", "Madi-Okollo", "Maracha", "Moyo", "Nebbi", "Obongi", "Pakwach", "Terego", "Yumbe", "Zombo"]:
-    uganda_geo.add_district("Northern", d)
-
-# Western Region Districts
-for d in ["Buliisa", "Hoima", "Hoima City", "Kagadi", "Kakumiro", "Kibaale", "Kikuube", "Kiryandongo", "Masindi", "Bundibugyo", "Bunyangabu", "Fort Portal City", "Kabarole", "Kamwenge", "Kasese", "Kitagwenda", "Kyegegwa", "Kyenjojo", "Ntoroko", "Buhweju", "Bushenyi", "Ibanda", "Isingiro", "Kazo", "Kiruhura", "Mbarara City", "Mitooma", "Ntungamo", "Rubirizi", "Rwampara", "Sheema", "Kabale", "Kanungu", "Kisoro", "Rubanda", "Rukiga", "Rukungiri"]:
-    uganda_geo.add_district("Western", d)
+uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Northern Division", "Namakwekwe")
+uganda_geo.add_district("Central", "Masaka")
+uganda_geo.add_district("Western", "Mbarara")
+uganda_geo.add_district("Northern", "Gulu")
 
 
 # ---------------------------------------------------------
@@ -305,11 +291,24 @@ def init_db():
     # Idempotent for older/partially-migrated databases.
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reference TEXT")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_dob TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS gender TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS photo BYTEA")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'approved'")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS booked_by_email TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS on_duty INTEGER DEFAULT 0")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS nin TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS nssf_number TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS tin_number TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS passport_number TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS next_of_kin_name TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS next_of_kin_phone TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS id_photo BYTEA")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER DEFAULT 0")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP")
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
@@ -430,6 +429,19 @@ INDEX_HTML = """
     </div>
     {% endif %}
 
+    {% if booking_error %}
+    <div class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl shadow-2xl p-8 text-center space-y-4">
+            <div class="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900">Booking Couldn't Be Submitted</h3>
+            <p class="text-sm text-slate-600">{{ booking_error }}</p>
+            <a href="/" class="block bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-sm">Try Again</a>
+        </div>
+    </div>
+    {% endif %}
+
     <main>
         <section class="relative py-16 lg:py-24 overflow-hidden bg-slate-900 text-white">
             <style>
@@ -482,8 +494,8 @@ INDEX_HTML = """
                     </div>
                 </div>
 
-                <div class="relative flex justify-center">
-                    <div class="w-full max-w-md bg-white p-6 rounded-3xl shadow-2xl text-slate-800 space-y-6 relative z-10 border border-slate-100">
+                <div class="relative flex justify-center items-center min-h-[420px]">
+                    <div class="w-full max-w-sm bg-white p-7 rounded-3xl shadow-2xl text-slate-800 space-y-7 relative z-10 border border-slate-100">
                         <div class="flex items-center justify-between border-b border-slate-100 pb-4">
                             <div class="flex items-center gap-3">
                                 <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg">CH</div>
@@ -779,7 +791,8 @@ INDEX_HTML = """
                 </div>
             </div>
 
-            <form action="/register" method="POST" class="space-y-4 p-6 md:p-8" onsubmit="return validateForm()">
+            <form action="/register" method="POST" enctype="multipart/form-data" class="space-y-4 p-6 md:p-8 relative" onsubmit="return validateForm()">
+                <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-64 h-64 object-contain opacity-[0.04] -z-10" onerror="this.style.display='none';">
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
                 <input type="hidden" id="location" name="location">
@@ -795,10 +808,27 @@ INDEX_HTML = """
                     </div>
                 </div>
 
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Date of Birth</label>
+                        <input type="date" name="patient_dob" required max="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                        <p class="text-[11px] text-slate-400 mt-1">The person receiving care — helps us match the right caregiver.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Gender</label>
+                        <select name="gender" required class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
+                            <option value="">-- Select --</option>
+                            <option value="Female">Female</option>
+                            <option value="Male">Male</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Date of Birth</label>
-                    <input type="date" name="patient_dob" required max="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
-                    <p class="text-[11px] text-slate-400 mt-1">The person receiving care — helps us match the right caregiver.</p>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Photo</label>
+                    <input type="file" name="photo" accept="image/*" required class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:text-xs file:font-bold">
+                    <p class="text-[11px] text-slate-400 mt-1">A clear photo of the patient — not shared publicly.</p>
                 </div>
 
                 <div>
@@ -824,8 +854,17 @@ INDEX_HTML = """
                             <i class="fa-solid fa-baby text-xl"></i>
                             <span class="text-xs font-bold leading-tight">Baby & Infant Care</span>
                         </button>
+                        <button type="button" data-service="Other" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
+                            <i class="fa-solid fa-ellipsis text-xl"></i>
+                            <span class="text-xs font-bold leading-tight">Other</span>
+                        </button>
                     </div>
                     <input type="hidden" id="form-service-select" name="service" required>
+                    <div id="other-service-wrap" class="hidden mt-3">
+                        <label class="block text-xs font-medium text-amber-700 mb-1">Please describe the care you need</label>
+                        <input type="text" id="other-service-input" name="service_other_detail" placeholder="e.g. Physiotherapy support" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
+                        <p class="text-[11px] text-slate-400 mt-1">Our team will confirm availability for this specific service before your visit.</p>
+                    </div>
                 </div>
 
                 <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
@@ -876,7 +915,8 @@ INDEX_HTML = """
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1"><i class="fa-solid fa-calendar-check text-blue-600 mr-1"></i> Preferred Visit Date</label>
-                    <input type="date" name="preferred_date" required min="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    <input type="date" name="preferred_date" required min="{{ today }}" max="{{ max_booking_date }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    <p class="text-[11px] text-slate-400 mt-1">Bookings can be scheduled up to 2 months ahead.</p>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Additional Notes</label>
@@ -987,10 +1027,18 @@ INDEX_HTML = """
                 btn.classList.toggle('bg-white', !active);
             });
             document.getElementById('form-service-select').value = value;
+            document.getElementById('other-service-wrap').classList.toggle('hidden', value !== 'Other');
         }
         selectService('Blood Pressure Check');
 
+        const IS_LOGGED_IN = {{ 'true' if is_logged_in else 'false' }};
+
         function openBookingForm(service = null, district = null) {
+            if (!IS_LOGGED_IN) {
+                alert("Please sign up or log in first to book a care visit.");
+                window.location.href = '/login?next=' + encodeURIComponent('/');
+                return;
+            }
             const container = document.getElementById('register-container');
             const card = document.getElementById('register-modal-card');
             container.classList.remove('hidden');
@@ -1061,6 +1109,15 @@ INDEX_HTML = """
         }
 
         function validateForm() {
+            const serviceVal = document.getElementById('form-service-select').value;
+            if (serviceVal === 'Other') {
+                const detail = document.getElementById('other-service-input').value.trim();
+                if (!detail) {
+                    alert("Please describe the care you need.");
+                    return false;
+                }
+            }
+
             const locInput = document.getElementById('location');
             if (isGpsActive) {
                 locInput.value = document.getElementById('gps-display').value;
@@ -1159,6 +1216,7 @@ LOGIN_HTML = COMMON_HEAD + """
             <p class="text-xs text-slate-500 text-center mb-6">Sign in to Client & Staff Dashboard</p>
             {% if error %} <div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ error }}</div> {% endif %}
             <form action="/login" method="POST" class="space-y-4">
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Address</label>
                     <input type="email" name="email" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
@@ -1386,12 +1444,44 @@ DASHBOARD_HTML = """
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Register New Worker</h3>
                     <p class="text-xs text-slate-500 mb-4">Step 1 of 2 — this just registers their account. They won't have any access until you activate them below and assign a role.</p>
-                    <form action="/admin/create-worker" method="POST" class="space-y-4">
+                    {% if worker_form_error %}<div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ worker_form_error }}</div>{% endif %}
+                    <form action="/admin/create-worker" method="POST" enctype="multipart/form-data" class="space-y-4">
                         <div class="grid md:grid-cols-2 gap-4">
                             <input type="text" name="fullname" required placeholder="Worker Full Name" class="p-3 border border-slate-200 rounded-xl text-sm">
-                            <input type="tel" name="phone" placeholder="Phone Number" class="p-3 border border-slate-200 rounded-xl text-sm">
+                            <input type="tel" name="phone" required placeholder="Phone Number" class="p-3 border border-slate-200 rounded-xl text-sm">
                             <input type="email" name="email" required placeholder="Worker Email" class="p-3 border border-slate-200 rounded-xl text-sm">
                             <input type="password" name="password" required placeholder="Default Password" class="p-3 border border-slate-200 rounded-xl text-sm">
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">NIN</label>
+                                <input type="text" name="nin" required placeholder="e.g. CM12345678ABCD" pattern="^[A-Za-z]{2}[A-Za-z0-9]{12}$" title="14 characters, starts with 2 letters (e.g. CM/CF)" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">NSSF Number</label>
+                                <input type="text" name="nssf_number" required placeholder="10 digit number" pattern="^[0-9]{6,12}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">TIN</label>
+                                <input type="text" name="tin_number" required placeholder="10 digit URA TIN" pattern="^[0-9]{10}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Passport Number</label>
+                                <input type="text" name="passport_number" required placeholder="e.g. B1234567" pattern="^[A-Za-z0-9]{6,9}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Next of Kin — Name</label>
+                                <input type="text" name="next_of_kin_name" required placeholder="Full name" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Next of Kin — Phone</label>
+                                <input type="tel" name="next_of_kin_phone" required placeholder="+256 700 000 000" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">ID Photo (face, for screening)</label>
+                                <input type="file" name="id_photo" accept="image/*" required class="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:text-xs file:font-bold">
+                                <p class="text-[11px] text-slate-400 mt-1">Only checked for a valid, reasonably-sized image file. This does <strong>not</strong> detect a face or verify it matches their NIN/passport — that needs a paid identity-verification service (see note below the staff table).</p>
+                            </div>
                         </div>
                         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Register Worker (Pending Approval)</button>
                     </form>
@@ -1436,6 +1526,36 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
+                <div class="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+                    <div class="p-6 border-b border-amber-100 bg-amber-50">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-clipboard-question text-amber-500 mr-2"></i> Pending Service Approvals</h3>
+                        <p class="text-xs text-slate-500 mt-1">Clients requested a custom "Other" service — confirm whether Carehive can actually provide it.</p>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        {% for appt in pending_appointments %}
+                        <div class="p-6 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-slate-900">{{ appt['full_name'] }} &middot; {{ appt['phone'] }}</p>
+                                <p class="text-sm text-slate-600">{{ appt['service'] }}</p>
+                                <p class="text-xs text-slate-400">Requested for {{ appt['preferred_date'] }} &middot; {{ appt['location'] }}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <form action="/admin/approve-appointment" method="POST">
+                                    <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
+                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs"><i class="fa-solid fa-check mr-1"></i> Approve</button>
+                                </form>
+                                <form action="/admin/reject-appointment" method="POST" onsubmit="return confirm('Reject this service request?');">
+                                    <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
+                                    <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-4 py-2 rounded-xl text-xs border border-red-200"><i class="fa-solid fa-xmark mr-1"></i> Reject</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p class="p-6 text-sm text-slate-400 text-center">No pending service approvals.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-user-nurse text-emerald-600 mr-2"></i> Staff on Duty & Permissions</h3>
@@ -1444,7 +1564,7 @@ DASHBOARD_HTML = """
                         <table class="w-full text-left text-sm text-slate-600">
                             <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b">
                                 <tr>
-                                    <th class="p-4">Name</th>
+                                    <th class="p-4">Name / Phone</th>
                                     <th class="p-4">Email</th>
                                     <th class="p-4">Role</th>
                                     <th class="p-4">On Duty</th>
@@ -1455,7 +1575,18 @@ DASHBOARD_HTML = """
                             <tbody class="divide-y divide-slate-100">
                                 {% for staff in staff_members %}
                                 <tr>
-                                    <td class="p-4 font-medium text-slate-900">{{ staff['name'] }}</td>
+                                    <td class="p-4 font-medium text-slate-900">
+                                        {% if staff['email'] == 'admin@carehive.com' %}
+                                        {{ staff['name'] }}
+                                        {% else %}
+                                        <form action="/admin/edit-staff" method="POST" class="flex flex-col gap-1.5">
+                                            <input type="hidden" name="email" value="{{ staff['email'] }}">
+                                            <input type="text" name="name" value="{{ staff['name'] }}" class="p-1.5 border border-slate-200 rounded-lg text-xs font-medium w-36">
+                                            <input type="tel" name="phone" value="{{ staff['phone'] or '' }}" placeholder="Phone" class="p-1.5 border border-slate-200 rounded-lg text-xs w-36">
+                                            <button type="submit" class="text-[11px] text-blue-600 hover:underline font-semibold text-left">Save</button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
                                     <td class="p-4">{{ staff['email'] }}</td>
                                     <td class="p-4">
                                         {% if staff['email'] == 'admin@carehive.com' %}
@@ -1507,11 +1638,25 @@ DASHBOARD_HTML = """
                             </tbody>
                         </table>
                     </div>
+                    <p class="text-[11px] text-slate-400 p-4 border-t border-slate-100">
+                        <i class="fa-solid fa-circle-info mr-1"></i> NIN/NSSF/TIN/passport numbers are format-checked only, and ID photos are screened for a detectable face —
+                        neither confirms a worker's identity against government records. Real ID verification needs a paid KYC/identity-verification API
+                        (e.g. Smile Identity, Onfido) wired in with your own account credentials.
+                    </p>
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-list-check text-indigo-600 mr-2"></i> Activity Audit Logs</h3>
+                        <form method="GET" action="/dashboard" class="flex items-center gap-2">
+                            <label class="text-xs font-semibold text-slate-500">Filter by staff:</label>
+                            <select name="staff_log" onchange="this.form.requestSubmit()" class="text-xs p-2 border border-slate-200 rounded-lg bg-white">
+                                <option value="">All Staff (recent activity)</option>
+                                {% for staff in staff_members %}
+                                <option value="{{ staff['email'] }}" {% if staff_log_filter == staff['email'] %}selected{% endif %}>{{ staff['name'] }} ({{ staff['email'] }})</option>
+                                {% endfor %}
+                            </select>
+                        </form>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-slate-600">
@@ -1529,6 +1674,8 @@ DASHBOARD_HTML = """
                                     <td class="p-4">{{ log['action'] }}</td>
                                     <td class="p-4 text-xs font-mono text-slate-400">{{ log['timestamp'] }}</td>
                                 </tr>
+                                {% else %}
+                                <tr><td colspan="3" class="p-6 text-center text-slate-400">No activity recorded for this staff member yet.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -1794,6 +1941,41 @@ from reportlab.lib.pagesizes import A6
 from reportlab.graphics.barcode import code128
 
 
+def screen_photo_has_face(photo_bytes: bytes):
+    """Sanity-screens uploaded photos before they're stored.
+
+    IMPORTANT: this only verifies the upload is a genuine, reasonably-sized
+    photo (not a corrupted file, a tiny placeholder, or some other document
+    type). It does NOT detect whether a human face is actually in it — real
+    face detection needs either a bundled ML model (the OpenCV Haar Cascade
+    approach was tried, but the installed opencv-python-headless 5.0
+    pre-release dropped cv2.CascadeClassifier in favor of a DNN detector
+    that requires an external .onnx model file not available here) or a
+    paid cloud vision API (AWS Rekognition, Azure Face, etc). Rejecting
+    obviously-wrong uploads is still useful even without true face
+    detection, so this stays as a real (lesser) safeguard rather than a
+    no-op. Imports PIL lazily so a missing install only disables this one
+    check rather than crashing the whole app at startup.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return True, "Photo screening unavailable (Pillow not installed) — accepted without screening."
+
+    try:
+        img = Image.open(io.BytesIO(photo_bytes))
+        img.verify()
+        img = Image.open(io.BytesIO(photo_bytes))  # verify() consumes the parser; reopen to inspect
+        width, height = img.size
+        if width < 80 or height < 80:
+            return False, "That image is too small to be a usable photo. Please upload a clearer picture."
+        if img.format not in ('JPEG', 'PNG', 'WEBP'):
+            return False, "Please upload a JPEG, PNG, or WEBP photo."
+        return True, "OK"
+    except Exception:
+        return False, "That file doesn't look like a valid photo. Please try a different image."
+
+
 def generate_reference(appointment_id: int) -> str:
     """Generates a unique, human-readable booking reference."""
     rand_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
@@ -1942,36 +2124,79 @@ def home():
     conn.close()
 
     booking_reference = request.args.get('ref')
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    booking_error = request.args.get('error')
+    today_dt = datetime.now(timezone.utc)
+    today = today_dt.strftime('%Y-%m-%d')
+    max_booking_date = (today_dt + timedelta(days=60)).strftime('%Y-%m-%d')
     site_stats = {
         'avg_rating': round(avg_rating_row['avg_rating'], 1) if avg_rating_row['avg_rating'] else 5.0,
         'district_count': len(uganda_geo.districts),
         'on_duty_count': on_duty_count,
     }
     return render_template_string(
-        INDEX_HTML, reviews=reviews, booking_reference=booking_reference, today=today, site_stats=site_stats
+        INDEX_HTML, reviews=reviews, booking_reference=booking_reference, booking_error=booking_error,
+        today=today, max_booking_date=max_booking_date, site_stats=site_stats,
+        is_logged_in=bool(session.get('user'))
     )
 
 
 @app.route('/register', methods=['POST'])
 def register_appointment():
+    # Booking requires an account so every appointment is tied to a real,
+    # authenticated client — anonymous bookings are no longer accepted.
+    if 'user' not in session:
+        return redirect(url_for('login', next='/'))
+
+    today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    max_date_str = (datetime.now(timezone.utc) + timedelta(days=60)).strftime('%Y-%m-%d')
+    preferred_date = request.form.get('preferred_date', '').strip()
+    if not (today_str <= preferred_date <= max_date_str):
+        return redirect(url_for('home', error="Please choose a visit date between today and 2 months from now."))
+
+    service = request.form.get('service', '').strip()
+    if service == 'Other':
+        other_detail = request.form.get('service_other_detail', '').strip()
+        if not other_detail:
+            return redirect(url_for('home', error="Please describe the care you need for an 'Other' service request."))
+        service = f"Other: {other_detail}"
+        approval_status = 'pending'
+    else:
+        approval_status = 'approved'
+
+    photo_file = request.files.get('photo')
+    if not photo_file or not photo_file.filename:
+        return redirect(url_for('home', error="Please upload a photo of the patient."))
+    photo_bytes = photo_file.read()
+    if len(photo_bytes) > 5 * 1024 * 1024:
+        return redirect(url_for('home', error="That photo is too large — please use one under 5MB."))
+    photo_ok, photo_reason = screen_photo_has_face(photo_bytes)
+    if not photo_ok:
+        return redirect(url_for('home', error=photo_reason))
+
     conn = get_db_connection()
     lat = request.form.get('latitude')
     lng = request.form.get('longitude')
 
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO appointments (full_name, phone, service, location, latitude, longitude, preferred_date, notes, patient_dob) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        '''INSERT INTO appointments
+           (full_name, phone, service, location, latitude, longitude, preferred_date, notes,
+            patient_dob, gender, photo, approval_status, booked_by_email)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (
             request.form.get('full_name', '').strip(),
             request.form.get('phone', '').strip(),
-            request.form.get('service', '').strip(),
+            service,
             request.form.get('location', '').strip(),
             float(lat) if lat else None,
             float(lng) if lng else None,
-            request.form.get('preferred_date', '').strip(),
+            preferred_date,
             request.form.get('notes', '').strip(),
-            request.form.get('patient_dob', '').strip()
+            request.form.get('patient_dob', '').strip(),
+            request.form.get('gender', '').strip(),
+            psycopg2.Binary(photo_bytes),
+            approval_status,
+            session['user']['email'],
         )
     )
     appointment_id = cursor.lastrowid
@@ -1981,7 +2206,7 @@ def register_appointment():
     conn.close()
 
     reference = create_booking_ticket(appointment_id, appointment_row)
-    log_activity(request.form.get('phone', 'guest'), f"New booking created — reference {reference}")
+    log_activity(session['user']['email'], f"New booking created — reference {reference}")
 
     return redirect(url_for('home', ref=reference))
 
@@ -2083,8 +2308,15 @@ def signup():
     return render_template_string(SIGNUP_HTML, today=today)
 
 
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_MINUTES = 15
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    next_url = request.values.get('next', '')
+    safe_next = next_url if next_url.startswith('/') and not next_url.startswith('//') else None
+
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -2093,20 +2325,41 @@ def login():
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
         user = cursor.fetchone()
-        conn.close()
+
+        if user and user['locked_until'] and str(user['locked_until']) > datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'):
+            conn.close()
+            return render_template_string(
+                LOGIN_HTML, next=safe_next,
+                error=f"Too many failed attempts. This account is locked for a few minutes — please try again shortly."
+            )
 
         if user and check_password_hash(user['password'], password):
+            cursor.execute('UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE email = ?', (email,))
+            conn.commit()
+            conn.close()
+
             if user['role'] == 'pending':
-                return render_template_string(LOGIN_HTML, error="Your registration is pending admin approval. Please check back once you've been activated.")
+                return render_template_string(LOGIN_HTML, next=safe_next, error="Your registration is pending admin approval. Please check back once you've been activated.")
 
             session['user'] = {'email': user['email'], 'fullname': user['name'], 'role': user['role']}
             USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
             log_activity(email, f"Logged in as {user['role']}")
-            return redirect(url_for('dashboard'))
+            return redirect(safe_next or url_for('dashboard'))
 
-        return render_template_string(LOGIN_HTML, error="Invalid email or password.")
+        if user:
+            attempts = (user['failed_login_count'] or 0) + 1
+            if attempts >= MAX_LOGIN_ATTEMPTS:
+                locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+                cursor.execute('UPDATE users SET failed_login_count = ?, locked_until = ? WHERE email = ?', (attempts, locked_until, email))
+                log_activity(email, f"Account locked after {attempts} failed login attempts")
+            else:
+                cursor.execute('UPDATE users SET failed_login_count = ? WHERE email = ?', (attempts, email))
+            conn.commit()
+        conn.close()
 
-    return render_template_string(LOGIN_HTML)
+        return render_template_string(LOGIN_HTML, next=safe_next, error="Invalid email or password.")
+
+    return render_template_string(LOGIN_HTML, next=safe_next)
 
 
 @app.route('/logout')
@@ -2161,6 +2414,7 @@ def dashboard():
     email = session['user']['email']
     activity = get_user_activity_info(email)
     perms = get_permissions_for_session_user()
+    worker_form_error = request.args.get('worker_error')
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2170,6 +2424,8 @@ def dashboard():
     logs = []
     staff_members = []
     pending_workers = []
+    pending_appointments = []
+    staff_log_filter = ''
 
     if session['user']['role'] == 'admin':
         cursor.execute('SELECT COUNT(*) AS cnt FROM appointments')
@@ -2195,7 +2451,17 @@ def dashboard():
         cursor.execute("SELECT name, email, phone FROM users WHERE role = 'pending' ORDER BY email")
         pending_workers = [dict(row) for row in cursor.fetchall()]
 
-        cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
+        cursor.execute(
+            "SELECT id, full_name, phone, service, preferred_date, location FROM appointments "
+            "WHERE approval_status = 'pending' ORDER BY id DESC"
+        )
+        pending_appointments = [dict(row) for row in cursor.fetchall()]
+
+        staff_log_filter = request.args.get('staff_log', '').strip().lower()
+        if staff_log_filter:
+            cursor.execute('SELECT email, action, timestamp FROM logs WHERE email = ? ORDER BY id DESC LIMIT 200', (staff_log_filter,))
+        else:
+            cursor.execute('SELECT email, action, timestamp FROM logs ORDER BY id DESC LIMIT 50')
         logs = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute("SELECT preferred_date, COUNT(*) AS cnt FROM appointments GROUP BY preferred_date ORDER BY preferred_date ASC")
@@ -2259,6 +2525,9 @@ def dashboard():
         logs=logs,
         staff_members=staff_members,
         pending_workers=pending_workers,
+        pending_appointments=pending_appointments,
+        staff_log_filter=staff_log_filter,
+        worker_form_error=worker_form_error,
         activity=activity,
         perms=perms
     )
@@ -2275,11 +2544,24 @@ def admin_appointments():
     return render_template_string(ADMIN_APPOINTMENTS_HTML, appointments=appointments)
 
 
+import re
+
+NIN_PATTERN = re.compile(r'^[A-Za-z]{2}[A-Za-z0-9]{12}$')       # e.g. CM12345678ABCD (14 chars)
+NSSF_PATTERN = re.compile(r'^[0-9]{6,12}$')
+TIN_PATTERN = re.compile(r'^[0-9]{10}$')                          # URA TIN is 10 digits
+PASSPORT_PATTERN = re.compile(r'^[A-Za-z0-9]{6,9}$')
+
+
 @app.route('/admin/create-worker', methods=['POST'])
 def admin_create_worker():
     """Step 1: registers a worker into the system with no role or permissions
     yet. They land in the 'pending' pool until an admin activates them via
-    /admin/activate-worker."""
+    /admin/activate-worker.
+
+    NIN/NSSF/TIN/passport are format-validated only (regex checks that they
+    look like a real ID number). This is NOT government verification — that
+    would require a paid identity-verification/KYC API integration.
+    """
     if 'user' not in session or session['user']['role'] != 'admin':
         return redirect(url_for('login'))
 
@@ -2287,20 +2569,55 @@ def admin_create_worker():
     email = request.form.get('email', '').strip().lower()
     phone = request.form.get('phone', '').strip()
     password = request.form.get('password', '').strip()
+    nin = request.form.get('nin', '').strip().upper()
+    nssf_number = request.form.get('nssf_number', '').strip()
+    tin_number = request.form.get('tin_number', '').strip()
+    passport_number = request.form.get('passport_number', '').strip().upper()
+    next_of_kin_name = request.form.get('next_of_kin_name', '').strip()
+    next_of_kin_phone = request.form.get('next_of_kin_phone', '').strip()
 
-    if fullname and email and password:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
-        if not cursor.fetchone():
-            hashed_pw = generate_password_hash(password)
-            cursor.execute(
-                'INSERT INTO users (email, name, role, password, phone, status) VALUES (?, ?, ?, ?, ?, ?)',
-                (email, fullname, 'pending', hashed_pw, phone, 'pending')
-            )
-            conn.commit()
-            log_activity(session['user']['email'], f"Registered new worker applicant: {email}")
+    if not all([fullname, email, phone, password, nin, nssf_number, tin_number,
+                passport_number, next_of_kin_name, next_of_kin_phone]):
+        return redirect(url_for('dashboard', worker_error="All fields are required, including next of kin details."))
+
+    if not NIN_PATTERN.match(nin):
+        return redirect(url_for('dashboard', worker_error="That NIN doesn't look valid — it should be 14 characters, starting with 2 letters (e.g. CM12345678ABCD)."))
+    if not NSSF_PATTERN.match(nssf_number):
+        return redirect(url_for('dashboard', worker_error="That NSSF number doesn't look valid — digits only."))
+    if not TIN_PATTERN.match(tin_number):
+        return redirect(url_for('dashboard', worker_error="That TIN doesn't look valid — URA TINs are 10 digits."))
+    if not PASSPORT_PATTERN.match(passport_number):
+        return redirect(url_for('dashboard', worker_error="That passport number doesn't look valid."))
+
+    id_photo = request.files.get('id_photo')
+    if not id_photo or not id_photo.filename:
+        return redirect(url_for('dashboard', worker_error="Please upload the worker's ID photo."))
+    id_photo_bytes = id_photo.read()
+    if len(id_photo_bytes) > 5 * 1024 * 1024:
+        return redirect(url_for('dashboard', worker_error="That photo is too large — please use one under 5MB."))
+    photo_ok, photo_reason = screen_photo_has_face(id_photo_bytes)
+    if not photo_ok:
+        return redirect(url_for('dashboard', worker_error=photo_reason))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
+    if cursor.fetchone():
         conn.close()
+        return redirect(url_for('dashboard', worker_error="That email is already registered."))
+
+    hashed_pw = generate_password_hash(password)
+    cursor.execute(
+        '''INSERT INTO users
+           (email, name, role, password, phone, status, nin, nssf_number, tin_number,
+            passport_number, next_of_kin_name, next_of_kin_phone, id_photo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        (email, fullname, 'pending', hashed_pw, phone, 'pending', nin, nssf_number, tin_number,
+         passport_number, next_of_kin_name, next_of_kin_phone, psycopg2.Binary(id_photo_bytes))
+    )
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Registered new worker applicant: {email}")
 
     return redirect(url_for('dashboard'))
 
@@ -2353,6 +2670,56 @@ def admin_update_permissions():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Updated permissions for {target_email}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/approve-appointment', methods=['POST'])
+def admin_approve_appointment():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    appointment_id = request.form.get('appointment_id', '').strip()
+    conn = get_db_connection()
+    conn.execute("UPDATE appointments SET approval_status = 'approved' WHERE id = ?", (appointment_id,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Approved custom service request for appointment #{appointment_id}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/reject-appointment', methods=['POST'])
+def admin_reject_appointment():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    appointment_id = request.form.get('appointment_id', '').strip()
+    conn = get_db_connection()
+    conn.execute("UPDATE appointments SET approval_status = 'rejected' WHERE id = ?", (appointment_id,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Rejected custom service request for appointment #{appointment_id}")
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/edit-staff', methods=['POST'])
+def admin_edit_staff():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    target_email = request.form.get('email', '').strip().lower()
+    if target_email == 'admin@carehive.com':
+        return redirect(url_for('dashboard'))
+
+    name = request.form.get('name', '').strip()
+    phone = request.form.get('phone', '').strip()
+    if not name:
+        return redirect(url_for('dashboard'))
+
+    conn = get_db_connection()
+    conn.execute('UPDATE users SET name = ?, phone = ? WHERE email = ?', (name, phone, target_email))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Edited staff details for {target_email}")
     return redirect(url_for('dashboard'))
 
 
