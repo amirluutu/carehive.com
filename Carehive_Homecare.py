@@ -182,7 +182,7 @@ uganda_geo.add_location("Central", "Kampala", "Rubaga Division", "Busega", "Buse
 
 # Wakiso — Kyadondo & Busiro counties, main municipalities/town councils
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Municipality", "Kira")
-uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Namugongo Division", "Kinawataka Road")
+uganda_geo.add_location("Central", "Wakiso", "Kira Municipality", "Namugongo Division", "Kireka, Kireka D, Kinawataka Road")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Nansana Municipality", "Nansana")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kasangati Town Council", "Kasangati")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Wakiso Town Council", "Wakiso Central")
@@ -361,6 +361,7 @@ def init_db():
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS booked_by_email TEXT")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_by TEXT")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS visit_status TEXT DEFAULT 'scheduled'")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
@@ -883,23 +884,23 @@ INDEX_HTML = """
 
                 <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Your Full Name</label>
+                        <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Your Full Name</label>
                         <input type="text" name="full_name" required placeholder="John Doe" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Valid Phone Number</label>
+                        <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Valid Phone Number</label>
                         <input type="tel" name="phone" required placeholder="+256 700 000 000" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                     </div>
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Date of Birth</label>
+                        <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Patient's Date of Birth</label>
                         <input type="date" name="patient_dob" required max="{{ today }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
-                        <p class="text-[11px] text-slate-400 mt-1">The person receiving care — helps us match the right caregiver.</p>
+                        <p class="text-xs text-slate-400 mt-1">The person receiving care — helps us match the right caregiver.</p>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Gender</label>
+                        <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Patient's Gender</label>
                         <select name="gender" required class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
                             <option value="">-- Select --</option>
                             <option value="Female">Female</option>
@@ -910,13 +911,13 @@ INDEX_HTML = """
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Patient's Photo</label>
+                    <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Patient's Photo</label>
                     <input type="file" name="photo" accept="image/*" required class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:text-xs file:font-bold">
-                    <p class="text-[11px] text-slate-400 mt-1">A clear photo of the patient — not shared publicly.</p>
+                    <p class="text-xs text-slate-400 mt-1">A clear photo of the patient — not shared publicly.</p>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-2">Service Required</label>
+                    <label class="block text-sm font-semibold text-slate-600 uppercase mb-2">Service Required</label>
                     <div id="service-picker" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <button type="button" data-service="Blood Pressure Check" onclick="selectService(this)" class="service-card flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 border-slate-200 text-slate-600 bg-white text-center transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40">
                             <i class="fa-solid fa-heart-pulse text-xl"></i>
@@ -945,15 +946,15 @@ INDEX_HTML = """
                     </div>
                     <input type="hidden" id="form-service-select" name="service" required>
                     <div id="other-service-wrap" class="hidden mt-3">
-                        <label class="block text-xs font-medium text-amber-700 mb-1">Please describe the care you need</label>
+                        <label class="block text-sm font-medium text-amber-700 mb-1.5">Please describe the care you need</label>
                         <input type="text" id="other-service-input" name="service_other_detail" placeholder="e.g. Physiotherapy support" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
-                        <p class="text-[11px] text-slate-400 mt-1">Our team will confirm availability for this specific service before your visit.</p>
+                        <p class="text-xs text-slate-400 mt-1">Our team will confirm availability for this specific service before your visit.</p>
                     </div>
                 </div>
 
                 <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                     <div class="flex justify-between items-center">
-                        <label class="block text-xs font-bold text-slate-700 uppercase">
+                        <label class="block text-sm font-bold text-slate-700 uppercase">
                             <i class="fa-solid fa-map-location-dot text-blue-600 mr-1"></i> Geographical Location
                         </label>
                         <button type="button" onclick="getLocation()" class="text-xs text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
@@ -963,13 +964,13 @@ INDEX_HTML = """
 
                     <div id="district-selection-group" class="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">District / City</label>
+                            <label class="block text-sm font-medium text-slate-500 mb-1.5">District / City</label>
                             <select id="district-select" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white" onchange="onDistrictChange()">
                                 <option value="">-- Choose District --</option>
                             </select>
                         </div>
                         <div id="location-select-group">
-                            <label class="block text-xs font-medium text-slate-500 mb-1">Sub-County / Division</label>
+                            <label class="block text-sm font-medium text-slate-500 mb-1.5">Sub-County / Division</label>
                             <select id="location-select" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white" onchange="updateManualVisibility()" disabled>
                                 <option value="">-- Select District First --</option>
                             </select>
@@ -978,18 +979,18 @@ INDEX_HTML = """
 
                     <div id="manual-location-inputs" class="hidden grid md:grid-cols-2 gap-4">
                         <div id="manual-district-wrap" class="hidden">
-                            <label class="block text-xs font-medium text-amber-700 mb-1">Type Your District / Town</label>
+                            <label class="block text-sm font-medium text-amber-700 mb-1.5">Type Your District / Town</label>
                             <input type="text" id="manual-district-input" placeholder="e.g. Kalungu Town" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
                         </div>
                         <div id="manual-area-wrap" class="hidden">
-                            <label class="block text-xs font-medium text-amber-700 mb-1">Type Your Area / Village / Landmark</label>
+                            <label class="block text-sm font-medium text-amber-700 mb-1.5">Type Your Area / Village / Landmark</label>
                             <input type="text" id="manual-area-input" placeholder="e.g. Near Total Petrol Station" class="w-full p-3 border border-amber-300 bg-amber-50 rounded-xl text-sm">
                         </div>
                     </div>
-                    <p class="text-[11px] text-slate-400">Can't find your area on the list? Choose "Other" in either dropdown to type it in.</p>
+                    <p class="text-xs text-slate-400">Can't find your area on the list? Choose "Other" in either dropdown to type it in.</p>
 
                     <div id="gps-container" class="hidden">
-                        <label class="block text-xs font-medium text-emerald-700 mb-1">Live Location Detected</label>
+                        <label class="block text-sm font-medium text-emerald-700 mb-1.5">Live Location Detected</label>
                         <input type="text" id="gps-display" readonly class="w-full p-3 border border-emerald-300 bg-emerald-50 text-emerald-900 rounded-xl font-mono text-xs font-bold">
                         <button type="button" onclick="clearGPS()" class="text-xs text-slate-500 underline mt-1 block">Clear Live Location</button>
                     </div>
@@ -998,12 +999,12 @@ INDEX_HTML = """
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1"><i class="fa-solid fa-calendar-check text-blue-600 mr-1"></i> Preferred Visit Date</label>
+                    <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5"><i class="fa-solid fa-calendar-check text-blue-600 mr-1"></i> Preferred Visit Date</label>
                     <input type="date" name="preferred_date" required min="{{ today }}" max="{{ max_booking_date }}" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
-                    <p class="text-[11px] text-slate-400 mt-1">Bookings can be scheduled up to 2 months ahead.</p>
+                    <p class="text-xs text-slate-400 mt-1">Bookings can be scheduled up to 2 months ahead.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Additional Notes</label>
+                    <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Additional Notes</label>
                     <textarea name="notes" placeholder="Anything our care team should know..." class="w-full p-3 border border-slate-200 rounded-xl text-sm h-20"></textarea>
                 </div>
                 <div class="flex gap-3 pt-2">
@@ -1668,6 +1669,8 @@ DASHBOARD_HTML = """
                                     <th class="p-4">Scheduled Date</th>
                                     <th class="p-4">Approved By</th>
                                     <th class="p-4">Approved At</th>
+                                    <th class="p-4">Status</th>
+                                    <th class="p-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -1678,9 +1681,34 @@ DASHBOARD_HTML = """
                                     <td class="p-4">{{ appt['preferred_date'] }}</td>
                                     <td class="p-4 font-mono text-xs">{{ appt['approved_by'] or '—' }}</td>
                                     <td class="p-4 font-mono text-xs text-slate-400">{{ appt['approved_at'] or '—' }}</td>
+                                    <td class="p-4">
+                                        {% if appt['visit_status'] == 'completed' %}
+                                        <span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">Completed</span>
+                                        {% elif appt['visit_status'] == 'cancelled' %}
+                                        <span class="bg-slate-200 text-slate-600 text-xs px-2.5 py-0.5 rounded-full font-semibold">Cancelled</span>
+                                        {% else %}
+                                        <span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">Scheduled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-4">
+                                        {% if appt['visit_status'] not in ['completed', 'cancelled'] %}
+                                        <div class="flex gap-2">
+                                            <form action="/admin/complete-appointment" method="POST">
+                                                <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
+                                                <button type="submit" class="text-xs text-blue-600 hover:underline font-semibold">Mark Completed</button>
+                                            </form>
+                                            <form action="/admin/cancel-appointment" method="POST" onsubmit="return confirm('Cancel this scheduled appointment?');">
+                                                <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
+                                                <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Cancel</button>
+                                            </form>
+                                        </div>
+                                        {% else %}
+                                        <span class="text-slate-300 text-xs">—</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="5" class="p-6 text-center text-slate-400">No approved appointments yet.</td></tr>
+                                <tr><td colspan="7" class="p-6 text-center text-slate-400">No approved appointments yet.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -1914,7 +1942,11 @@ DASHBOARD_HTML = """
                                 <p class="font-bold text-slate-900">{{ appt['service'] }}</p>
                                 <p class="text-xs text-slate-400">{{ appt['preferred_date'] }} &middot; {{ appt['location'] }} &middot; Ref: {{ appt['reference'] or 'pending' }}</p>
                             </div>
-                            {% if appt['approval_status'] == 'approved' %}
+                            {% if appt['approval_status'] == 'approved' and appt['visit_status'] == 'completed' %}
+                            <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">Visit Completed</span>
+                            {% elif appt['approval_status'] == 'approved' and appt['visit_status'] == 'cancelled' %}
+                            <span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full font-semibold">Cancelled</span>
+                            {% elif appt['approval_status'] == 'approved' %}
                             <span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">Approved & Scheduled</span>
                             {% elif appt['approval_status'] == 'rejected' %}
                             <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-semibold">Not Approved</span>
@@ -2723,8 +2755,8 @@ def dashboard():
         pending_appointments = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute(
-            "SELECT id, full_name, service, preferred_date, location, approved_by, approved_at FROM appointments "
-            "WHERE approval_status = 'approved' ORDER BY approved_at DESC NULLS LAST LIMIT 50"
+            "SELECT id, full_name, service, preferred_date, location, approved_by, approved_at, visit_status "
+            "FROM appointments WHERE approval_status = 'approved' ORDER BY approved_at DESC NULLS LAST LIMIT 50"
         )
         approved_appointments = [dict(row) for row in cursor.fetchall()]
 
@@ -2789,7 +2821,7 @@ def dashboard():
         logs = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute(
-            'SELECT reference, service, preferred_date, location, approval_status FROM appointments '
+            'SELECT reference, service, preferred_date, location, approval_status, visit_status FROM appointments '
             'WHERE booked_by_email = ? ORDER BY id DESC LIMIT 20', (email,)
         )
         my_appointments = [dict(row) for row in cursor.fetchall()]
@@ -2992,6 +3024,34 @@ def admin_reject_appointment():
     conn.close()
     log_activity(session['user']['email'], f"Rejected appointment #{appointment_id}")
     return redirect(url_for('dashboard', toast=f"Logged: rejected appointment #{appointment_id}"))
+
+
+@app.route('/admin/complete-appointment', methods=['POST'])
+def admin_complete_appointment():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    appointment_id = request.form.get('appointment_id', '').strip()
+    conn = get_db_connection()
+    conn.execute("UPDATE appointments SET visit_status = 'completed' WHERE id = ?", (appointment_id,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Marked appointment #{appointment_id} as completed")
+    return redirect(url_for('dashboard', toast=f"Logged: marked appointment #{appointment_id} completed"))
+
+
+@app.route('/admin/cancel-appointment', methods=['POST'])
+def admin_cancel_appointment():
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    appointment_id = request.form.get('appointment_id', '').strip()
+    conn = get_db_connection()
+    conn.execute("UPDATE appointments SET visit_status = 'cancelled' WHERE id = ?", (appointment_id,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Cancelled scheduled appointment #{appointment_id}")
+    return redirect(url_for('dashboard', toast=f"Logged: cancelled appointment #{appointment_id}"))
 
 
 @app.route('/admin/edit-staff', methods=['POST'])
