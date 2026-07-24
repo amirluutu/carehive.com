@@ -477,10 +477,17 @@ INDEX_HTML = """
             </nav>
 
             <div class="flex items-center gap-3">
+                {% if is_logged_in %}
+                <a href="/dashboard" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">My Account</a>
+                <a href="/logout" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all">
+                    Log Out
+                </a>
+                {% else %}
                 <a href="/login" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">Log In</a>
                 <a href="/signup" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5">
                     Sign Up
                 </a>
+                {% endif %}
             </div>
         </div>
     </header>
