@@ -452,7 +452,7 @@ INDEX_HTML = """
                 <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400 mr-2"></i>+256 708 083 118</a>
                 <a href="mailto:carehivehomecare@gmail.com" class="hidden sm:inline hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400 mr-2"></i>carehivehomecare@gmail.com</a>
             </div>
-            <div class="text-blue-300 font-medium"><i class="fa-solid fa-location-dot mr-1"></i>Kampala & Greater Uganda</div>
+            <div class="text-blue-300 font-medium"><i class="fa-solid fa-location-dot mr-1"></i>Kireka, Kinawataka Rd, Kira, Wakiso</div>
         </div>
     </div>
 
@@ -540,7 +540,7 @@ INDEX_HTML = """
                 <img id="hero-bg-img" src="/static/images/{{ 'home-hero-background.jpg'|url_encode_path }}" alt="" class="w-full h-full object-cover opacity-60" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1631815589968-fdb09a223b1e?auto=format&fit=crop&w=1600&q=80';">
                 <div class="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/75 to-slate-900/40"></div>
             </div>
-            <div class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+            <div class="relative z-10 max-w-3xl mx-auto px-6">
                 <div class="space-y-6 text-center lg:text-left">
                     <div class="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
                         <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
@@ -587,35 +587,6 @@ INDEX_HTML = """
                     {% endif %}
                 </div>
 
-                <div class="relative flex justify-center items-center min-h-[420px]">
-                    <div class="w-full max-w-sm bg-white p-7 rounded-3xl shadow-2xl text-slate-800 space-y-7 relative z-10 border border-slate-100">
-                        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg">CH</div>
-                                <div>
-                                    <h3 class="font-bold text-slate-900">Carehive Staff</h3>
-                                    <p class="text-xs text-slate-500">Verified Homecare Specialist</p>
-                                </div>
-                            </div>
-                            <span class="bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                {% if site_stats['on_duty_count'] > 0 %}{{ site_stats['on_duty_count'] }} On Duty{% else %}On Duty{% endif %}
-                            </span>
-                        </div>
-                        <div class="space-y-3">
-                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scheduled Care Visit</p>
-                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-sm border border-slate-100">
-                                <span class="font-medium text-slate-700"><i class="fa-solid fa-pills text-blue-600 mr-2"></i> Medication Management</span>
-                                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">Completed</span>
-                            </div>
-                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-sm border border-slate-100">
-                                <span class="font-medium text-slate-700"><i class="fa-solid fa-stethoscope text-amber-500 mr-2"></i> Vital Signs Checkup</span>
-                                <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Today</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="absolute -top-10 -right-10 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl -z-0"></div>
-                </div>
             </div>
         </section>
 
@@ -811,8 +782,8 @@ INDEX_HTML = """
                         <div class="w-9 h-9 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center mx-auto mb-2.5 text-sm">
                             <i class="fa-solid fa-location-dot"></i>
                         </div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Coverage Area</p>
-                        <p class="text-sm font-bold text-white">Kampala & Greater Uganda</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Our Office</p>
+                        <p class="text-sm font-bold text-white">Kireka, Kinawataka Rd, Kira, Wakiso</p>
                     </div>
                 </div>
                 <div class="text-center mt-10">
@@ -857,7 +828,7 @@ INDEX_HTML = """
                     <li><a href="tel:+256753976912" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-phone text-blue-400"></i> +256 753 976 912</a></li>
                     <li><a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-brands fa-whatsapp text-emerald-400"></i> +256 708 083 118</a></li>
                     <li><a href="mailto:carehivehomecare@gmail.com" class="flex items-center gap-2 hover:text-white transition-colors"><i class="fa-solid fa-envelope text-amber-400"></i> carehivehomecare@gmail.com</a></li>
-                    <li class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-rose-400"></i> Kampala & Greater Uganda</li>
+                    <li class="flex items-start gap-2"><i class="fa-solid fa-location-dot text-rose-400 mt-0.5"></i> Kireka, Kireka D, Kinawataka Road, Namugongo Division, Kira Municipality, Wakiso District</li>
                 </ul>
             </div>
         </div>
@@ -1040,6 +1011,10 @@ INDEX_HTML = """
                 ugandaGeoData = data;
                 populateDistricts();
             });
+
+        if (new URLSearchParams(window.location.search).get('book') === '1') {
+            window.addEventListener('DOMContentLoaded', () => openBookingForm());
+        }
 
         function populateDistricts() {
             const districtSelect = document.getElementById('district-select');
@@ -1813,6 +1788,44 @@ DASHBOARD_HTML = """
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-users text-blue-600 mr-2"></i> Client Accounts</h3>
+                        <p class="text-xs text-slate-500 mt-1">Everyone who signed up as a client. Deleting here fully removes the account — they'd need to sign up again from scratch.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b">
+                                <tr>
+                                    <th class="p-4">Name</th>
+                                    <th class="p-4">Email</th>
+                                    <th class="p-4">Phone</th>
+                                    <th class="p-4">Date of Birth</th>
+                                    <th class="p-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {% for client in client_accounts %}
+                                <tr>
+                                    <td class="p-4 font-medium text-slate-900">{{ client['name'] }}</td>
+                                    <td class="p-4">{{ client['email'] }}</td>
+                                    <td class="p-4">{{ client['phone'] or '—' }}</td>
+                                    <td class="p-4">{{ client['date_of_birth'] or '—' }}</td>
+                                    <td class="p-4">
+                                        <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Permanently delete this client account?');">
+                                            <input type="hidden" name="email" value="{{ client['email'] }}">
+                                            <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="p-6 text-center text-slate-400">No client accounts yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-list-check text-indigo-600 mr-2"></i> Activity Audit Logs</h3>
                         <form method="GET" action="/dashboard" class="flex items-center gap-2">
@@ -1920,7 +1933,7 @@ DASHBOARD_HTML = """
                         <h2 class="text-2xl font-bold text-slate-900 mb-2">Welcome to Your Carehive Portal</h2>
                         <p class="text-slate-600 text-sm mb-6">Manage your home healthcare requests, update your profile details, or book new care visits.</p>
                         <div class="flex flex-wrap gap-4">
-                            <a href="/#services" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm">
+                            <a href="/?book=1" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm">
                                 Book Care Visit
                             </a>
                             <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm">
@@ -1938,6 +1951,38 @@ DASHBOARD_HTML = """
                             <a href="/settings" class="text-xs text-blue-600 font-bold hover:underline">Edit profile settings →</a>
                         </div>
                     </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg">
+                                {{ session['user']['fullname'][:1]|upper }}
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900">{{ session['user']['fullname'] }}</h3>
+                                <p class="text-xs text-slate-500">{% if session['user']['role'] == 'staff' %}Homecare Specialist{% else %}Carehive Client{% endif %}</p>
+                            </div>
+                        </div>
+                        {% if session['user']['role'] == 'staff' %}
+                        <span class="{% if my_duty_status %}bg-emerald-50 text-emerald-700 border-emerald-200{% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %} text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full {% if my_duty_status %}bg-emerald-500{% else %}bg-slate-400{% endif %}"></span>
+                            {% if my_duty_status %}On Duty{% else %}Off Duty{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Care Team On Duty Now</p>
+                    {% if on_duty_staff %}
+                    <div class="flex flex-wrap gap-2">
+                        {% for staff in on_duty_staff %}
+                        <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {{ staff['name'] }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-slate-400">No staff currently marked on duty.</p>
+                    {% endif %}
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -2728,6 +2773,9 @@ def dashboard():
     logs = []
     staff_members = []
     pending_workers = []
+    client_accounts = []
+    on_duty_staff = []
+    my_duty_status = False
     pending_appointments = []
     approved_appointments = []
     my_appointments = []
@@ -2756,6 +2804,9 @@ def dashboard():
 
         cursor.execute("SELECT name, email, phone FROM users WHERE role = 'pending' ORDER BY email")
         pending_workers = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("SELECT name, email, phone, date_of_birth FROM users WHERE role = 'client' ORDER BY name")
+        client_accounts = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute(
             "SELECT id, full_name, phone, service, preferred_date, location FROM appointments "
@@ -2835,6 +2886,16 @@ def dashboard():
         )
         my_appointments = [dict(row) for row in cursor.fetchall()]
 
+        cursor.execute(
+            "SELECT name, on_duty FROM users WHERE role IN ('admin', 'staff') AND on_duty = 1 ORDER BY name"
+        )
+        on_duty_staff = [dict(row) for row in cursor.fetchall()]
+
+        if session['user']['role'] == 'staff':
+            cursor.execute('SELECT on_duty FROM users WHERE email = ?', (email,))
+            row = cursor.fetchone()
+            my_duty_status = bool(row and row['on_duty'])
+
     conn.close()
     return render_template_string(
         DASHBOARD_HTML,
@@ -2843,6 +2904,9 @@ def dashboard():
         logs=logs,
         staff_members=staff_members,
         pending_workers=pending_workers,
+        client_accounts=client_accounts,
+        on_duty_staff=on_duty_staff,
+        my_duty_status=my_duty_status,
         pending_appointments=pending_appointments,
         approved_appointments=approved_appointments,
         my_appointments=my_appointments,
@@ -3168,11 +3232,13 @@ def admin_remove_staff():
         return redirect(url_for('dashboard'))
 
     conn = get_db_connection()
+    target_row = conn.execute('SELECT role FROM users WHERE email = ?', (target_email,)).fetchone()
+    target_role = target_row['role'] if target_row else 'account'
     conn.execute("DELETE FROM users WHERE email = ? AND role != 'admin'", (target_email,))
     conn.commit()
     conn.close()
-    log_activity(session['user']['email'], f"Removed staff account {target_email}")
-    return redirect(url_for('dashboard', toast=f"Logged: removed staff account {target_email}"))
+    log_activity(session['user']['email'], f"Removed {target_role} account {target_email}")
+    return redirect(url_for('dashboard', toast=f"Logged: removed {target_role} account {target_email}"))
 
 
 if __name__ == '__main__':
