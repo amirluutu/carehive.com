@@ -553,6 +553,7 @@ INDEX_HTML = """
                         Carehive Homecare Limited delivers vetted, professional medical support and eldercare directly to your family's doorstep across Uganda.
                     </p>
 
+                    {% if is_logged_in %}
                     <div class="bg-white p-4 rounded-2xl shadow-2xl text-slate-800 space-y-3 mt-6">
                         <div class="grid sm:grid-cols-2 gap-3 text-left">
                             <div>
@@ -576,6 +577,14 @@ INDEX_HTML = """
                             <i class="fa-solid fa-magnifying-glass"></i> Find Care & Book
                         </button>
                     </div>
+                    {% else %}
+                    <div class="mt-6">
+                        <a href="/signup" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-2xl transition-all hover:-translate-y-0.5">
+                            <i class="fa-solid fa-magnifying-glass"></i> Find Care
+                        </a>
+                        <p class="text-slate-400 text-xs mt-2">Sign up to book — it only takes a minute.</p>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div class="relative flex justify-center items-center min-h-[420px]">
