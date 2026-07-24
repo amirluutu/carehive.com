@@ -162,17 +162,56 @@ class UgandaGeographyRegistry:
 # actually serves. Anywhere else is captured via the "Other / Type Your
 # Area" manual entry already built into the booking form.
 uganda_geo = UgandaGeographyRegistry()
-uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Ssabagabo", "Kanyanya")
+
+# Kampala — 5 official divisions
 uganda_geo.add_location("Central", "Kampala", "Central Division", "Nakasero", "Nakasero I")
+uganda_geo.add_location("Central", "Kampala", "Kawempe Division", "Bwaise", "Bwaise I")
+uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Ssabagabo", "Kanyanya")
 uganda_geo.add_location("Central", "Kampala", "Nakawa Division", "Kireka", "Kireka D")
-uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Town", "Kira")
+uganda_geo.add_location("Central", "Kampala", "Rubaga Division", "Mengo", "Mengo Kisenyi")
+
+# Wakiso — Kyadondo & Busiro counties, main municipalities/town councils
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Municipality", "Kira")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Namugongo Division", "Kinawataka Road")
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Nansana Municipality", "Nansana")
+uganda_geo.add_location("Central", "Wakiso", "Busiro County", "Entebbe Municipality", "Entebbe Town")
+uganda_geo.add_location("Central", "Wakiso", "Busiro County", "Kajjansi Town Council", "Kajjansi")
+
+# Mukono — Municipality divisions + surrounding sub-counties
 uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Central Division", "Mukono Town")
-uganda_geo.add_location("Eastern", "Jinja", "Jinja North", "Bugembe", "Budondo")
+uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Goma Division", "Goma")
+uganda_geo.add_location("Central", "Mukono", "Mukono County", "Nakisunga Sub-County", "Nakisunga")
+uganda_geo.add_location("Central", "Mukono", "Mukono County", "Ntenjeru Sub-County", "Ntenjeru")
+
+# Jinja — Jinja City divisions + Jinja District sub-counties
+uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Central Division", "Jinja Central")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Northern Division", "Walukuba")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Mpumudde-Kimaka Division", "Kimaka")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Budondo Sub-County", "Budondo")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Buwenge Sub-County", "Buwenge")
+
+# Mbale — Mbale City divisions + Mbale District sub-counties
 uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Northern Division", "Namakwekwe")
-uganda_geo.add_district("Central", "Masaka")
-uganda_geo.add_district("Western", "Mbarara")
-uganda_geo.add_district("Northern", "Gulu")
+uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Industrial Division", "Namatala")
+uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Wanale Division", "Busamaga")
+uganda_geo.add_location("Eastern", "Mbale", "Mbale District", "Bungokho Sub-County", "Bungokho")
+
+# Masaka — Masaka City divisions + Masaka District sub-counties
+uganda_geo.add_location("Central", "Masaka", "Masaka City", "Katwe-Butego Division", "Katwe")
+uganda_geo.add_location("Central", "Masaka", "Masaka City", "Nyendo-Mukungwe Division", "Nyendo")
+uganda_geo.add_location("Central", "Masaka", "Masaka City", "Kimaanya-Kabonera Division", "Kimaanya")
+uganda_geo.add_location("Central", "Masaka", "Masaka District", "Kyanamukaaka Sub-County", "Kyanamukaaka")
+
+# Mbarara — Mbarara City divisions
+uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Kamukuzi Division", "Kamukuzi")
+uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Kakoba Division", "Kakoba")
+uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Nyamitanga Division", "Nyamitanga")
+uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Biharwe Division", "Biharwe")
+
+# Gulu — Gulu City divisions
+uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Laroo-Pece Division", "Pece")
+uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Bardege-Layibi Division", "Layibi")
+uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Layibi Division", "Layibi Techo")
 
 
 # ---------------------------------------------------------
@@ -475,10 +514,11 @@ INDEX_HTML = """
                             <div>
                                 <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Care Required</label>
                                 <select id="hero-service-select" class="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
-                                    <option value="Professional Nursing Care">Professional Nursing Care</option>
+                                    <option value="Blood Pressure Check">Blood Pressure Check</option>
                                     <option value="Elderly Care">Elderly & Respiratory Care</option>
                                     <option value="Baby Care">Pediatric & Baby Care</option>
                                     <option value="Post Surgery Care">Post-Surgery Support</option>
+                                    <option value="Other">Other (Specify in Form)</option>
                                 </select>
                             </div>
                             <div>
@@ -791,8 +831,9 @@ INDEX_HTML = """
                 </div>
             </div>
 
-            <form action="/register" method="POST" enctype="multipart/form-data" class="space-y-4 p-6 md:p-8 relative" onsubmit="return validateForm()">
-                <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-64 h-64 object-contain opacity-[0.04] -z-10" onerror="this.style.display='none';">
+            <form action="/register" method="POST" enctype="multipart/form-data" class="p-6 md:p-8 relative" onsubmit="return validateForm()">
+                <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-64 h-64 object-contain opacity-[0.06] z-0" onerror="this.style.display='none';">
+                <div class="relative z-10 space-y-4">
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
                 <input type="hidden" id="location" name="location">
@@ -931,6 +972,7 @@ INDEX_HTML = """
                 <p class="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-lock text-slate-300"></i> Your details are kept private and shared only with your assigned caregiver.
                 </p>
+                </div>
             </form>
         </div>
     </section>
@@ -1445,7 +1487,9 @@ DASHBOARD_HTML = """
                     <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Register New Worker</h3>
                     <p class="text-xs text-slate-500 mb-4">Step 1 of 2 — this just registers their account. They won't have any access until you activate them below and assign a role.</p>
                     {% if worker_form_error %}<div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ worker_form_error }}</div>{% endif %}
-                    <form action="/admin/create-worker" method="POST" enctype="multipart/form-data" class="space-y-4">
+                    <form action="/admin/create-worker" method="POST" enctype="multipart/form-data" class="relative">
+                        <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-56 h-56 object-contain opacity-[0.06] z-0" onerror="this.style.display='none';">
+                        <div class="relative z-10 space-y-4">
                         <div class="grid md:grid-cols-2 gap-4">
                             <input type="text" name="fullname" required placeholder="Worker Full Name" class="p-3 border border-slate-200 rounded-xl text-sm">
                             <input type="tel" name="phone" required placeholder="Phone Number" class="p-3 border border-slate-200 rounded-xl text-sm">
@@ -1484,6 +1528,7 @@ DASHBOARD_HTML = """
                             </div>
                         </div>
                         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Register Worker (Pending Approval)</button>
+                        </div>
                     </form>
                 </div>
 
@@ -1576,14 +1621,12 @@ DASHBOARD_HTML = """
                                 {% for staff in staff_members %}
                                 <tr>
                                     <td class="p-4 font-medium text-slate-900">
-                                        {% if staff['email'] == 'admin@carehive.com' %}
                                         {{ staff['name'] }}
-                                        {% else %}
-                                        <form action="/admin/edit-staff" method="POST" class="flex flex-col gap-1.5">
+                                        {% if staff['email'] != 'admin@carehive.com' %}
+                                        <form action="/admin/edit-staff" method="POST" class="flex items-center gap-1.5 mt-1">
                                             <input type="hidden" name="email" value="{{ staff['email'] }}">
-                                            <input type="text" name="name" value="{{ staff['name'] }}" class="p-1.5 border border-slate-200 rounded-lg text-xs font-medium w-36">
-                                            <input type="tel" name="phone" value="{{ staff['phone'] or '' }}" placeholder="Phone" class="p-1.5 border border-slate-200 rounded-lg text-xs w-36">
-                                            <button type="submit" class="text-[11px] text-blue-600 hover:underline font-semibold text-left">Save</button>
+                                            <input type="tel" name="phone" value="{{ staff['phone'] or '' }}" placeholder="Phone" class="p-1.5 border border-slate-200 rounded-lg text-xs w-32 font-normal">
+                                            <button type="submit" class="text-[11px] text-blue-600 hover:underline font-semibold">Save</button>
                                         </form>
                                         {% endif %}
                                     </td>
@@ -1625,7 +1668,8 @@ DASHBOARD_HTML = """
                                         </form>
                                         {% endif %}
                                     </td>
-                                    <td class="p-4">
+                                    <td class="p-4 space-y-1">
+                                        <button type="button" onclick="openStaffLogModal('{{ staff['email'] }}', '{{ staff['name'] }}')" class="text-xs text-indigo-600 hover:underline font-semibold block">View Full Log</button>
                                         {% if staff['email'] != 'admin@carehive.com' %}
                                         <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Remove this account?');">
                                             <input type="hidden" name="email" value="{{ staff['email'] }}">
@@ -1793,6 +1837,24 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
+    <div id="staff-log-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex items-center justify-between gap-3">
+                <div>
+                    <h3 id="staff-log-modal-name" class="font-bold text-slate-900 text-lg"></h3>
+                    <p id="staff-log-modal-email" class="text-xs text-slate-400 font-mono"></p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a id="staff-log-download-link" href="#" class="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"><i class="fa-solid fa-download"></i> Download CSV</a>
+                    <button type="button" onclick="closeStaffLogModal()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div id="staff-log-modal-body" class="overflow-y-auto p-6 space-y-2 text-sm text-slate-600">
+                <p class="text-center text-slate-400">Loading...</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         function toggleSidebar(open) {
             const sidebar = document.getElementById('dashboard-sidebar');
@@ -1804,6 +1866,37 @@ DASHBOARD_HTML = """
                 sidebar.classList.add('-translate-x-full');
                 backdrop.classList.add('hidden');
             }
+        }
+
+        function openStaffLogModal(email, name) {
+            document.getElementById('staff-log-modal').classList.remove('hidden');
+            document.getElementById('staff-log-modal-name').textContent = name + "'s Activity Log";
+            document.getElementById('staff-log-modal-email').textContent = email;
+            document.getElementById('staff-log-download-link').href = '/admin/staff-log/' + encodeURIComponent(email) + '/download';
+            const body = document.getElementById('staff-log-modal-body');
+            body.innerHTML = '<p class="text-center text-slate-400">Loading...</p>';
+
+            fetch('/admin/staff-log/' + encodeURIComponent(email))
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.logs || data.logs.length === 0) {
+                        body.innerHTML = '<p class="text-center text-slate-400">No activity recorded for this staff member yet.</p>';
+                        return;
+                    }
+                    body.innerHTML = data.logs.map(log => `
+                        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span class="font-medium text-slate-700">${log.action}</span>
+                            <span class="text-xs font-mono text-slate-400 shrink-0 ml-3">${log.timestamp}</span>
+                        </div>
+                    `).join('');
+                })
+                .catch(() => {
+                    body.innerHTML = '<p class="text-center text-red-500">Couldn\'t load activity log.</p>';
+                });
+        }
+
+        function closeStaffLogModal() {
+            document.getElementById('staff-log-modal').classList.add('hidden');
         }
     </script>
 </body>
@@ -2710,17 +2803,66 @@ def admin_edit_staff():
     if target_email == 'admin@carehive.com':
         return redirect(url_for('dashboard'))
 
-    name = request.form.get('name', '').strip()
+    # Name is fixed at registration and cannot be changed here — only
+    # contact details are editable.
     phone = request.form.get('phone', '').strip()
-    if not name:
-        return redirect(url_for('dashboard'))
 
     conn = get_db_connection()
-    conn.execute('UPDATE users SET name = ?, phone = ? WHERE email = ?', (name, phone, target_email))
+    conn.execute('UPDATE users SET phone = ? WHERE email = ?', (phone, target_email))
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Edited staff details for {target_email}")
     return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/staff-log/<email>')
+def admin_staff_log(email):
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return jsonify({"error": "unauthorized"}), 403
+
+    conn = get_db_connection()
+    user_row = conn.execute('SELECT name, email FROM users WHERE email = ?', (email.strip().lower(),)).fetchone()
+    logs = conn.execute(
+        'SELECT action, timestamp FROM logs WHERE email = ? ORDER BY id DESC LIMIT 500', (email.strip().lower(),)
+    ).fetchall()
+    conn.close()
+
+    if not user_row:
+        return jsonify({"error": "not found"}), 404
+
+    return jsonify({
+        "name": user_row['name'],
+        "email": user_row['email'],
+        "logs": [dict(row) for row in logs]
+    })
+
+
+@app.route('/admin/staff-log/<email>/download')
+def admin_staff_log_download(email):
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    import csv
+
+    conn = get_db_connection()
+    logs = conn.execute(
+        'SELECT email, action, timestamp FROM logs WHERE email = ? ORDER BY id DESC LIMIT 1000', (email.strip().lower(),)
+    ).fetchall()
+    conn.close()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(['Email', 'Action', 'Timestamp'])
+    for row in logs:
+        writer.writerow([row['email'], row['action'], row['timestamp']])
+
+    output = io.BytesIO(buffer.getvalue().encode('utf-8'))
+    safe_email = ''.join(c for c in email if c.isalnum() or c in '@.-_')
+    from flask import send_file
+    return send_file(
+        output, mimetype='text/csv', as_attachment=True,
+        download_name=f"activity-log-{safe_email}.csv"
+    )
 
 
 @app.route('/admin/toggle-duty', methods=['POST'])
