@@ -163,25 +163,41 @@ class UgandaGeographyRegistry:
 # Area" manual entry already built into the booking form.
 uganda_geo = UgandaGeographyRegistry()
 
-# Kampala — 5 official divisions
+# Kampala — 5 official divisions, several parishes each
 uganda_geo.add_location("Central", "Kampala", "Central Division", "Nakasero", "Nakasero I")
+uganda_geo.add_location("Central", "Kampala", "Central Division", "Kololo", "Kololo I")
+uganda_geo.add_location("Central", "Kampala", "Central Division", "Old Kampala", "Old Kampala")
 uganda_geo.add_location("Central", "Kampala", "Kawempe Division", "Bwaise", "Bwaise I")
+uganda_geo.add_location("Central", "Kampala", "Kawempe Division", "Kazo", "Kazo Angola")
+uganda_geo.add_location("Central", "Kampala", "Kawempe Division", "Kyebando", "Kyebando")
 uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Ssabagabo", "Kanyanya")
+uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Nsambya", "Nsambya")
+uganda_geo.add_location("Central", "Kampala", "Makindye Division", "Salaama", "Salaama Road")
 uganda_geo.add_location("Central", "Kampala", "Nakawa Division", "Kireka", "Kireka D")
+uganda_geo.add_location("Central", "Kampala", "Nakawa Division", "Ntinda", "Ntinda")
+uganda_geo.add_location("Central", "Kampala", "Nakawa Division", "Naguru", "Naguru")
 uganda_geo.add_location("Central", "Kampala", "Rubaga Division", "Mengo", "Mengo Kisenyi")
+uganda_geo.add_location("Central", "Kampala", "Rubaga Division", "Nateete", "Nateete")
+uganda_geo.add_location("Central", "Kampala", "Rubaga Division", "Busega", "Busega")
 
 # Wakiso — Kyadondo & Busiro counties, main municipalities/town councils
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kira Municipality", "Kira")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Namugongo Division", "Kinawataka Road")
 uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Nansana Municipality", "Nansana")
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Kasangati Town Council", "Kasangati")
+uganda_geo.add_location("Central", "Wakiso", "Kyadondo County", "Wakiso Town Council", "Wakiso Central")
 uganda_geo.add_location("Central", "Wakiso", "Busiro County", "Entebbe Municipality", "Entebbe Town")
 uganda_geo.add_location("Central", "Wakiso", "Busiro County", "Kajjansi Town Council", "Kajjansi")
+uganda_geo.add_location("Central", "Wakiso", "Busiro County", "Nabweru Sub-County", "Nabweru")
 
 # Mukono — Municipality divisions + surrounding sub-counties
 uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Central Division", "Mukono Town")
 uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Goma Division", "Goma")
+uganda_geo.add_location("Central", "Mukono", "Mukono Municipality", "Nabuti Division", "Nabuti")
 uganda_geo.add_location("Central", "Mukono", "Mukono County", "Nakisunga Sub-County", "Nakisunga")
 uganda_geo.add_location("Central", "Mukono", "Mukono County", "Ntenjeru Sub-County", "Ntenjeru")
+uganda_geo.add_location("Central", "Mukono", "Mukono County", "Seeta-Nazigo Sub-County", "Seeta")
+uganda_geo.add_location("Central", "Mukono", "Mukono County", "Goma Sub-County", "Naggalama")
 
 # Jinja — Jinja City divisions + Jinja District sub-counties
 uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Central Division", "Jinja Central")
@@ -189,29 +205,38 @@ uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Northern Division", "
 uganda_geo.add_location("Eastern", "Jinja", "Jinja City", "Mpumudde-Kimaka Division", "Kimaka")
 uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Budondo Sub-County", "Budondo")
 uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Buwenge Sub-County", "Buwenge")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Mafubira Sub-County", "Mafubira")
+uganda_geo.add_location("Eastern", "Jinja", "Jinja District", "Kakira Town Council", "Kakira")
 
 # Mbale — Mbale City divisions + Mbale District sub-counties
 uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Northern Division", "Namakwekwe")
 uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Industrial Division", "Namatala")
 uganda_geo.add_location("Eastern", "Mbale", "Mbale City", "Wanale Division", "Busamaga")
 uganda_geo.add_location("Eastern", "Mbale", "Mbale District", "Bungokho Sub-County", "Bungokho")
+uganda_geo.add_location("Eastern", "Mbale", "Mbale District", "Busiu Sub-County", "Busiu")
+uganda_geo.add_location("Eastern", "Mbale", "Mbale District", "Nakaloke Sub-County", "Nakaloke")
 
 # Masaka — Masaka City divisions + Masaka District sub-counties
 uganda_geo.add_location("Central", "Masaka", "Masaka City", "Katwe-Butego Division", "Katwe")
 uganda_geo.add_location("Central", "Masaka", "Masaka City", "Nyendo-Mukungwe Division", "Nyendo")
 uganda_geo.add_location("Central", "Masaka", "Masaka City", "Kimaanya-Kabonera Division", "Kimaanya")
 uganda_geo.add_location("Central", "Masaka", "Masaka District", "Kyanamukaaka Sub-County", "Kyanamukaaka")
+uganda_geo.add_location("Central", "Masaka", "Masaka District", "Bukakata Sub-County", "Bukakata")
 
-# Mbarara — Mbarara City divisions
+# Mbarara — Mbarara City divisions + Mbarara District sub-counties
 uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Kamukuzi Division", "Kamukuzi")
 uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Kakoba Division", "Kakoba")
 uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Nyamitanga Division", "Nyamitanga")
 uganda_geo.add_location("Western", "Mbarara", "Mbarara City", "Biharwe Division", "Biharwe")
+uganda_geo.add_location("Western", "Mbarara", "Mbarara District", "Kakiika Sub-County", "Kakiika")
+uganda_geo.add_location("Western", "Mbarara", "Mbarara District", "Rubaya Sub-County", "Rubaya")
 
-# Gulu — Gulu City divisions
+# Gulu — Gulu City divisions + Gulu District sub-counties
 uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Laroo-Pece Division", "Pece")
 uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Bardege-Layibi Division", "Layibi")
 uganda_geo.add_location("Northern", "Gulu", "Gulu City", "Layibi Division", "Layibi Techo")
+uganda_geo.add_location("Northern", "Gulu", "Gulu District", "Bungatira Sub-County", "Bungatira")
+uganda_geo.add_location("Northern", "Gulu", "Gulu District", "Awach Sub-County", "Awach")
 
 
 # ---------------------------------------------------------
@@ -407,6 +432,10 @@ INDEX_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carehive Homecare Limited - Compassionate & Connected Care</title>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -426,13 +455,15 @@ INDEX_HTML = """
 
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-            <a href="/" class="flex items-center gap-3">
-                <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
-                <div>
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="openLogoLightbox()" title="View full logo" class="cursor-zoom-in">
+                    <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm hover:opacity-80 transition-opacity" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
+                </button>
+                <a href="/">
                     <span class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight block">Care<span class="text-blue-600">Hive</span></span>
                     <span class="text-[10px] text-blue-700 font-bold tracking-wider uppercase block -mt-1">Homecare Limited</span>
-                </div>
-            </a>
+                </a>
+            </div>
 
             <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
                 <a href="#services" class="hover:text-blue-600 transition-colors">Services</a>
@@ -451,17 +482,27 @@ INDEX_HTML = """
         </div>
     </header>
 
+    <div id="logo-lightbox" class="hidden fixed inset-0 z-[60] bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-6" onclick="closeLogoLightbox()">
+        <button type="button" onclick="closeLogoLightbox()" class="absolute top-6 right-6 text-white/80 hover:text-white text-3xl"><i class="fa-solid fa-xmark"></i></button>
+        <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="max-w-full max-h-full rounded-2xl shadow-2xl" onerror="this.onerror=null; this.src='https://placehold.co/400x400?text=Carehive';">
+    </div>
+    <script>
+        function openLogoLightbox() { document.getElementById('logo-lightbox').classList.remove('hidden'); }
+        function closeLogoLightbox() { document.getElementById('logo-lightbox').classList.add('hidden'); }
+    </script>
+
     {% if booking_reference %}
     <div class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white max-w-md w-full rounded-3xl shadow-2xl p-8 text-center space-y-4">
-            <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl">
-                <i class="fa-solid fa-check"></i>
+            <div class="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-hourglass-half"></i>
             </div>
-            <h3 class="text-xl font-bold text-slate-900">Booking Confirmed</h3>
-            <p class="text-sm text-slate-500">Your appointment reference is</p>
+            <h3 class="text-xl font-bold text-slate-900">Request Received — Pending Approval</h3>
+            <p class="text-sm text-slate-500">Your reference number is</p>
             <p class="text-lg font-mono font-bold text-blue-700 bg-blue-50 rounded-xl py-2">{{ booking_reference }}</p>
+            <p class="text-xs text-slate-500">Our team will review your request and confirm your visit date. Log in any time to check its status.</p>
             <a href="/ticket/{{ booking_reference }}" target="_blank" class="inline-flex w-full justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">
-                <i class="fa-solid fa-file-pdf"></i> View / Download PDF Ticket
+                <i class="fa-solid fa-file-pdf"></i> View / Download Request Receipt
             </a>
             <a href="/" class="block text-xs text-slate-400 hover:text-slate-600">Close</a>
         </div>
@@ -1212,7 +1253,9 @@ SIGNUP_HTML = COMMON_HEAD + """
         <a href="/" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back Home</a>
     </nav>
     <div class="max-w-md w-full mx-auto p-6 my-8">
-        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
+            <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-56 h-56 object-contain opacity-[0.06] z-0" onerror="this.style.display='none';">
+            <div class="relative z-10">
             <h2 class="text-2xl font-bold text-slate-900 text-center mb-1">Client Registration</h2>
             <p class="text-xs text-slate-500 text-center mb-6">Create your Carehive account with a valid email</p>
             {% if error %} <div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ error }}</div> {% endif %}
@@ -1236,6 +1279,7 @@ SIGNUP_HTML = COMMON_HEAD + """
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Register Account</button>
             </form>
             <p class="text-center mt-6 text-xs text-slate-500">Already have an account? <a href="/login" class="text-blue-600 font-bold hover:underline">Login here</a></p>
+            </div>
         </div>
     </div>
     <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
@@ -1253,7 +1297,9 @@ LOGIN_HTML = COMMON_HEAD + """
         <a href="/" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back Home</a>
     </nav>
     <div class="max-w-md w-full mx-auto p-6 my-8">
-        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
+            <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-56 h-56 object-contain opacity-[0.06] z-0" onerror="this.style.display='none';">
+            <div class="relative z-10">
             <h2 class="text-2xl font-bold text-slate-900 text-center mb-1">Portal Login</h2>
             <p class="text-xs text-slate-500 text-center mb-6">Sign in to Client & Staff Dashboard</p>
             {% if error %} <div class="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-200">{{ error }}</div> {% endif %}
@@ -1270,6 +1316,7 @@ LOGIN_HTML = COMMON_HEAD + """
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Log In</button>
             </form>
             <p class="text-center mt-6 text-xs text-slate-500">Need an account? <a href="/signup" class="text-blue-600 font-bold hover:underline">Sign up</a></p>
+            </div>
         </div>
     </div>
     <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
@@ -1287,7 +1334,9 @@ SETTINGS_HTML = COMMON_HEAD + """
         <a href="/dashboard" class="text-xs font-semibold text-slate-600 hover:text-blue-600">← Back to Dashboard</a>
     </nav>
     <div class="max-w-md w-full mx-auto p-6 my-8">
-        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+        <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
+            <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="" class="pointer-events-none select-none absolute inset-0 m-auto w-56 h-56 object-contain opacity-[0.06] z-0" onerror="this.style.display='none';">
+            <div class="relative z-10">
             <h2 class="text-2xl font-bold text-slate-900 text-center mb-1"><i class="fa-solid fa-user-gear text-blue-600 mr-2"></i>Account Settings</h2>
             <p class="text-xs text-slate-500 text-center mb-6">Update your profile details and password</p>
             {% if message %} <div class="bg-emerald-50 text-emerald-800 text-xs p-3 rounded-xl mb-4 border border-emerald-200">{{ message }}</div> {% endif %}
@@ -1306,6 +1355,7 @@ SETTINGS_HTML = COMMON_HEAD + """
                 </div>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">Save Changes</button>
             </form>
+            </div>
         </div>
     </div>
     <footer class="text-center py-4 text-xs text-slate-400">© 2026 Carehive Homecare Limited</footer>
@@ -1573,8 +1623,8 @@ DASHBOARD_HTML = """
 
                 <div class="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
                     <div class="p-6 border-b border-amber-100 bg-amber-50">
-                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-clipboard-question text-amber-500 mr-2"></i> Pending Service Approvals</h3>
-                        <p class="text-xs text-slate-500 mt-1">Clients requested a custom "Other" service — confirm whether Carehive can actually provide it.</p>
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-clipboard-question text-amber-500 mr-2"></i> Pending Appointment Approvals</h3>
+                        <p class="text-xs text-slate-500 mt-1">Every booking now needs review before it's confirmed. Approving schedules the visit for the date you set below.</p>
                     </div>
                     <div class="divide-y divide-slate-100">
                         {% for appt in pending_appointments %}
@@ -1584,19 +1634,20 @@ DASHBOARD_HTML = """
                                 <p class="text-sm text-slate-600">{{ appt['service'] }}</p>
                                 <p class="text-xs text-slate-400">Requested for {{ appt['preferred_date'] }} &middot; {{ appt['location'] }}</p>
                             </div>
-                            <div class="flex gap-2">
-                                <form action="/admin/approve-appointment" method="POST">
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <form action="/admin/approve-appointment" method="POST" class="flex items-center gap-2">
                                     <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
-                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs"><i class="fa-solid fa-check mr-1"></i> Approve</button>
+                                    <input type="date" name="confirmed_date" value="{{ appt['preferred_date'] }}" class="p-2 border border-slate-200 rounded-lg text-xs">
+                                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs"><i class="fa-solid fa-check mr-1"></i> Approve & Schedule</button>
                                 </form>
-                                <form action="/admin/reject-appointment" method="POST" onsubmit="return confirm('Reject this service request?');">
+                                <form action="/admin/reject-appointment" method="POST" onsubmit="return confirm('Reject this booking request?');">
                                     <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
                                     <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-4 py-2 rounded-xl text-xs border border-red-200"><i class="fa-solid fa-xmark mr-1"></i> Reject</button>
                                 </form>
                             </div>
                         </div>
                         {% else %}
-                        <p class="p-6 text-sm text-slate-400 text-center">No pending service approvals.</p>
+                        <p class="p-6 text-sm text-slate-400 text-center">No pending appointment approvals.</p>
                         {% endfor %}
                     </div>
                 </div>
@@ -1819,6 +1870,31 @@ DASHBOARD_HTML = """
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-calendar-check text-blue-600 mr-2"></i> My Appointments</h3>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        {% for appt in my_appointments %}
+                        <div class="p-6 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="font-bold text-slate-900">{{ appt['service'] }}</p>
+                                <p class="text-xs text-slate-400">{{ appt['preferred_date'] }} &middot; {{ appt['location'] }} &middot; Ref: {{ appt['reference'] or 'pending' }}</p>
+                            </div>
+                            {% if appt['approval_status'] == 'approved' %}
+                            <span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">Approved & Scheduled</span>
+                            {% elif appt['approval_status'] == 'rejected' %}
+                            <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-semibold">Not Approved</span>
+                            {% else %}
+                            <span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-semibold">Pending Approval</span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="p-6 text-sm text-slate-400 text-center">You haven't booked any appointments yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-clock-rotate-left text-blue-600 mr-2"></i> Recent Account Activity</h3>
                     </div>
                     <div class="p-6">
@@ -1835,6 +1911,11 @@ DASHBOARD_HTML = """
                 {% endif %}
             </main>
         </div>
+    </div>
+
+    <div id="action-toast" class="hidden fixed top-6 right-6 z-[70] bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 max-w-sm">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="action-toast-text" class="text-sm font-medium"></span>
     </div>
 
     <div id="staff-log-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1856,6 +1937,17 @@ DASHBOARD_HTML = """
     </div>
 
     <script>
+        const TOAST_MESSAGE = {{ toast_message|tojson }};
+        if (TOAST_MESSAGE) {
+            const toast = document.getElementById('action-toast');
+            document.getElementById('action-toast-text').textContent = TOAST_MESSAGE;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 4000);
+            const url = new URL(window.location);
+            url.searchParams.delete('toast');
+            window.history.replaceState({}, '', url);
+        }
+
         function toggleSidebar(open) {
             const sidebar = document.getElementById('dashboard-sidebar');
             const backdrop = document.getElementById('sidebar-backdrop');
@@ -2095,7 +2187,8 @@ def build_ticket_pdf(appointment: dict) -> io.BytesIO:
     c.setFont('Helvetica-Bold', 14)
     c.drawString(16, height - 38, "Carehive Homecare Limited")
     c.setFont('Helvetica', 8)
-    c.drawString(16, height - 52, "Booking Confirmation Ticket")
+    status = (appointment.get('approval_status') or 'pending').capitalize()
+    c.drawString(16, height - 52, f"Booking Request — Status: {status}")
 
     # Body details
     c.setFillColorRGB(0.1, 0.1, 0.1)
@@ -2111,6 +2204,7 @@ def build_ticket_pdf(appointment: dict) -> io.BytesIO:
         y -= line_height
 
     draw_line("Reference:", reference)
+    draw_line("Status:", status)
     draw_line("Customer:", appointment['full_name'])
     draw_line("Phone:", appointment['phone'])
     draw_line("Service:", appointment['service'])
@@ -2252,9 +2346,11 @@ def register_appointment():
         if not other_detail:
             return redirect(url_for('home', error="Please describe the care you need for an 'Other' service request."))
         service = f"Other: {other_detail}"
-        approval_status = 'pending'
-    else:
-        approval_status = 'approved'
+
+    # Every booking now needs admin review before it's confirmed/scheduled —
+    # not just "Other" service requests. This lets the admin (or whoever is
+    # in charge of forms) confirm the actual visit date as part of approval.
+    approval_status = 'pending'
 
     photo_file = request.files.get('photo')
     if not photo_file or not photo_file.filename:
@@ -2508,6 +2604,7 @@ def dashboard():
     activity = get_user_activity_info(email)
     perms = get_permissions_for_session_user()
     worker_form_error = request.args.get('worker_error')
+    toast_message = request.args.get('toast')
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2518,6 +2615,7 @@ def dashboard():
     staff_members = []
     pending_workers = []
     pending_appointments = []
+    my_appointments = []
     staff_log_filter = ''
 
     if session['user']['role'] == 'admin':
@@ -2610,6 +2708,12 @@ def dashboard():
         cursor.execute('SELECT email, action, timestamp FROM logs WHERE email = ? ORDER BY id DESC LIMIT 20', (email,))
         logs = [dict(row) for row in cursor.fetchall()]
 
+        cursor.execute(
+            'SELECT reference, service, preferred_date, location, approval_status FROM appointments '
+            'WHERE booked_by_email = ? ORDER BY id DESC LIMIT 20', (email,)
+        )
+        my_appointments = [dict(row) for row in cursor.fetchall()]
+
     conn.close()
     return render_template_string(
         DASHBOARD_HTML,
@@ -2619,8 +2723,10 @@ def dashboard():
         staff_members=staff_members,
         pending_workers=pending_workers,
         pending_appointments=pending_appointments,
+        my_appointments=my_appointments,
         staff_log_filter=staff_log_filter,
         worker_form_error=worker_form_error,
+        toast_message=toast_message,
         activity=activity,
         perms=perms
     )
@@ -2712,7 +2818,7 @@ def admin_create_worker():
     conn.close()
     log_activity(session['user']['email'], f"Registered new worker applicant: {email}")
 
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: registered worker applicant {email}"))
 
 
 @app.route('/admin/activate-worker', methods=['POST'])
@@ -2739,7 +2845,7 @@ def admin_activate_worker():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Activated worker {target_email} as staff")
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: activated {target_email} as staff"))
 
 
 @app.route('/admin/update-permissions', methods=['POST'])
@@ -2763,7 +2869,7 @@ def admin_update_permissions():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Updated permissions for {target_email}")
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: updated permissions for {target_email}"))
 
 
 @app.route('/admin/approve-appointment', methods=['POST'])
@@ -2772,12 +2878,20 @@ def admin_approve_appointment():
         return redirect(url_for('login'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
+    confirmed_date = request.form.get('confirmed_date', '').strip()
+
     conn = get_db_connection()
-    conn.execute("UPDATE appointments SET approval_status = 'approved' WHERE id = ?", (appointment_id,))
+    if confirmed_date:
+        conn.execute(
+            "UPDATE appointments SET approval_status = 'approved', preferred_date = ? WHERE id = ?",
+            (confirmed_date, appointment_id)
+        )
+    else:
+        conn.execute("UPDATE appointments SET approval_status = 'approved' WHERE id = ?", (appointment_id,))
     conn.commit()
     conn.close()
-    log_activity(session['user']['email'], f"Approved custom service request for appointment #{appointment_id}")
-    return redirect(url_for('dashboard'))
+    log_activity(session['user']['email'], f"Approved and scheduled appointment #{appointment_id} for {confirmed_date}")
+    return redirect(url_for('dashboard', toast=f"Logged: approved & scheduled appointment #{appointment_id}"))
 
 
 @app.route('/admin/reject-appointment', methods=['POST'])
@@ -2790,8 +2904,8 @@ def admin_reject_appointment():
     conn.execute("UPDATE appointments SET approval_status = 'rejected' WHERE id = ?", (appointment_id,))
     conn.commit()
     conn.close()
-    log_activity(session['user']['email'], f"Rejected custom service request for appointment #{appointment_id}")
-    return redirect(url_for('dashboard'))
+    log_activity(session['user']['email'], f"Rejected appointment #{appointment_id}")
+    return redirect(url_for('dashboard', toast=f"Logged: rejected appointment #{appointment_id}"))
 
 
 @app.route('/admin/edit-staff', methods=['POST'])
@@ -2812,7 +2926,7 @@ def admin_edit_staff():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Edited staff details for {target_email}")
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: updated contact details for {target_email}"))
 
 
 @app.route('/admin/staff-log/<email>')
@@ -2886,7 +3000,7 @@ def admin_toggle_duty():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Marked {target_email} as {'on duty' if on_duty else 'off duty'}")
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: marked {target_email} as {'on duty' if on_duty else 'off duty'}"))
 
 
 @app.route('/admin/remove-staff', methods=['POST'])
@@ -2903,7 +3017,7 @@ def admin_remove_staff():
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Removed staff account {target_email}")
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard', toast=f"Logged: removed staff account {target_email}"))
 
 
 if __name__ == '__main__':
