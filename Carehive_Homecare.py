@@ -1393,7 +1393,7 @@ DASHBOARD_HTML = """
                     <a href="/settings" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
                         <i class="fa-solid fa-gear w-5 text-amber-400"></i> Account Settings
                     </a>
-                    {% if session['user']['role'] == 'admin' %}
+                    {% if perms.get('view_appointments') %}
                     <a href="/admin" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
                         <i class="fa-solid fa-calendar-check w-5 text-blue-400"></i> Appointments Table
                     </a>
@@ -1937,6 +1937,20 @@ DASHBOARD_HTML = """
                 {% else %}
                 <div class="grid md:grid-cols-3 gap-6">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 md:col-span-2">
+                        {% if session['user']['role'] == 'staff' %}
+                        <h2 class="text-2xl font-bold text-slate-900 mb-2">Welcome to Your Staff Portal</h2>
+                        <p class="text-slate-600 text-sm mb-6">Toggle your duty status, view assigned appointments, and manage your profile.</p>
+                        <div class="flex flex-wrap gap-4">
+                            {% if perms.get('view_appointments') %}
+                            <a href="/admin" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm">
+                                View Appointments
+                            </a>
+                            {% endif %}
+                            <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm">
+                                Account Settings
+                            </a>
+                        </div>
+                        {% else %}
                         <h2 class="text-2xl font-bold text-slate-900 mb-2">Welcome to Your Carehive Portal</h2>
                         <p class="text-slate-600 text-sm mb-6">Manage your home healthcare requests, update your profile details, or book new care visits.</p>
                         <div class="flex flex-wrap gap-4">
@@ -1947,6 +1961,7 @@ DASHBOARD_HTML = """
                                 Account Settings
                             </a>
                         </div>
+                        {% endif %}
                     </div>
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                         <div>
@@ -1992,6 +2007,7 @@ DASHBOARD_HTML = """
                     {% endif %}
                 </div>
 
+                {% if session['user']['role'] != 'staff' %}
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-calendar-check text-blue-600 mr-2"></i> My Appointments</h3>
@@ -2020,6 +2036,7 @@ DASHBOARD_HTML = """
                         {% endfor %}
                     </div>
                 </div>
+                {% endif %}
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
@@ -2927,8 +2944,10 @@ def dashboard():
 
 @app.route('/admin')
 def admin_appointments():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if not require_permission('view_appointments'):
+        return redirect(url_for('dashboard'))
 
     conn = get_db_connection()
     appointments = conn.execute('SELECT * FROM appointments ORDER BY id DESC').fetchall()
@@ -2954,8 +2973,10 @@ def admin_create_worker():
     look like a real ID number). This is NOT government verification — that
     would require a paid identity-verification/KYC API integration.
     """
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     fullname = request.form.get('fullname', '').strip()
     email = request.form.get('email', '').strip().lower()
@@ -3018,8 +3039,10 @@ def admin_create_worker():
 def admin_activate_worker():
     """Step 2: picks a pending worker registration, assigns permissions, and
     makes them an active staff member."""
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
 
@@ -3043,8 +3066,10 @@ def admin_activate_worker():
 
 @app.route('/admin/update-permissions', methods=['POST'])
 def admin_update_permissions():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
     if target_email == 'admin@carehive.com':
@@ -3067,8 +3092,10 @@ def admin_update_permissions():
 
 @app.route('/admin/approve-appointment', methods=['POST'])
 def admin_approve_appointment():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
     confirmed_date = request.form.get('confirmed_date', '').strip()
@@ -3094,8 +3121,10 @@ def admin_approve_appointment():
 
 @app.route('/admin/reject-appointment', methods=['POST'])
 def admin_reject_appointment():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
     conn = get_db_connection()
@@ -3108,8 +3137,10 @@ def admin_reject_appointment():
 
 @app.route('/admin/complete-appointment', methods=['POST'])
 def admin_complete_appointment():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
     conn = get_db_connection()
@@ -3122,8 +3153,10 @@ def admin_complete_appointment():
 
 @app.route('/admin/cancel-appointment', methods=['POST'])
 def admin_cancel_appointment():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     appointment_id = request.form.get('appointment_id', '').strip()
     conn = get_db_connection()
@@ -3136,8 +3169,10 @@ def admin_cancel_appointment():
 
 @app.route('/admin/edit-staff', methods=['POST'])
 def admin_edit_staff():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
     if target_email == 'admin@carehive.com':
@@ -3179,8 +3214,10 @@ def admin_staff_log(email):
 
 @app.route('/admin/staff-log/<email>/download')
 def admin_staff_log_download(email):
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     import csv
 
@@ -3209,8 +3246,10 @@ def admin_staff_log_download(email):
 def admin_toggle_duty():
     """Marks a staff member on/off duty. No cap on how many can be on duty
     at once — that's an operational policy call left entirely to the admin."""
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
     if target_email == 'admin@carehive.com':
@@ -3231,8 +3270,10 @@ def admin_toggle_duty():
 
 @app.route('/admin/remove-staff', methods=['POST'])
 def admin_remove_staff():
-    if 'user' not in session or session['user']['role'] != 'admin':
+    if 'user' not in session:
         return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
     if target_email == 'admin@carehive.com':
