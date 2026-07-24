@@ -359,6 +359,8 @@ def init_db():
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS photo BYTEA")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'approved'")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS booked_by_email TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_by TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
@@ -773,34 +775,34 @@ INDEX_HTML = """
                     <h2 class="text-3xl font-bold text-white">Get In Touch</h2>
                     <p class="text-slate-300 mt-3">Reach our care coordination team any time — we're on call 24/7 across Uganda.</p>
                 </div>
-                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <a href="tel:+256753976912" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
-                        <div class="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <a href="tel:+256753976912" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 text-center transition-all">
+                        <div class="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-300 flex items-center justify-center mx-auto mb-2.5 text-sm">
                             <i class="fa-solid fa-phone"></i>
                         </div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Call Us</p>
-                        <p class="font-bold text-white">+256 753 976 912</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Call Us</p>
+                        <p class="text-sm font-bold text-white">+256 753 976 912</p>
                     </a>
-                    <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
-                        <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                    <a href="https://wa.me/256708083118" target="_blank" rel="noopener" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 text-center transition-all">
+                        <div class="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center mx-auto mb-2.5 text-sm">
                             <i class="fa-brands fa-whatsapp"></i>
                         </div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">WhatsApp</p>
-                        <p class="font-bold text-white">+256 708 083 118</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">WhatsApp</p>
+                        <p class="text-sm font-bold text-white">+256 708 083 118</p>
                     </a>
-                    <a href="mailto:carehivehomecare@gmail.com" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-6 text-center transition-all">
-                        <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                    <a href="mailto:carehivehomecare@gmail.com" class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 text-center transition-all">
+                        <div class="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center mx-auto mb-2.5 text-sm">
                             <i class="fa-solid fa-envelope"></i>
                         </div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</p>
-                        <p class="font-bold text-white break-all">carehivehomecare@gmail.com</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Email</p>
+                        <p class="text-xs font-bold text-white break-all leading-snug">carehivehomecare@gmail.com</p>
                     </a>
-                    <div class="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
-                        <div class="w-12 h-12 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center mx-auto mb-4 text-xl">
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                        <div class="w-9 h-9 rounded-lg bg-rose-500/20 text-rose-300 flex items-center justify-center mx-auto mb-2.5 text-sm">
                             <i class="fa-solid fa-location-dot"></i>
                         </div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Coverage Area</p>
-                        <p class="font-bold text-white">Kampala & Greater Uganda</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Coverage Area</p>
+                        <p class="text-sm font-bold text-white">Kampala & Greater Uganda</p>
                     </div>
                 </div>
                 <div class="text-center mt-10">
@@ -1654,6 +1656,39 @@ DASHBOARD_HTML = """
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-calendar-check text-emerald-600 mr-2"></i> Approved Appointments</h3>
+                        <p class="text-xs text-slate-500 mt-1">Who approved each booking, and when.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b">
+                                <tr>
+                                    <th class="p-4">Client</th>
+                                    <th class="p-4">Service</th>
+                                    <th class="p-4">Scheduled Date</th>
+                                    <th class="p-4">Approved By</th>
+                                    <th class="p-4">Approved At</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {% for appt in approved_appointments %}
+                                <tr>
+                                    <td class="p-4 font-medium text-slate-900">{{ appt['full_name'] }}</td>
+                                    <td class="p-4">{{ appt['service'] }}</td>
+                                    <td class="p-4">{{ appt['preferred_date'] }}</td>
+                                    <td class="p-4 font-mono text-xs">{{ appt['approved_by'] or '—' }}</td>
+                                    <td class="p-4 font-mono text-xs text-slate-400">{{ appt['approved_at'] or '—' }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="p-6 text-center text-slate-400">No approved appointments yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-user-nurse text-emerald-600 mr-2"></i> Staff on Duty & Permissions</h3>
                     </div>
                     <div class="overflow-x-auto">
@@ -2167,6 +2202,35 @@ def generate_reference(appointment_id: int) -> str:
     return f"CH-{appointment_id:05d}-{rand_suffix}"
 
 
+_WATERMARK_IMAGE_CACHE = None
+
+
+def _get_watermark_image_reader():
+    """Lazily fades the company logo to a light watermark and caches the
+    result in memory so the PDF ticket doesn't re-process the image on
+    every request. Returns None if the source image or Pillow is missing —
+    the ticket still renders fine without a watermark."""
+    global _WATERMARK_IMAGE_CACHE
+    if _WATERMARK_IMAGE_CACHE is not None:
+        return _WATERMARK_IMAGE_CACHE
+
+    try:
+        from PIL import Image as PILImage
+        from reportlab.lib.utils import ImageReader
+
+        logo_path = os.path.join('static', 'images', 'company-logo.jpeg')
+        logo = PILImage.open(logo_path).convert('RGB')
+        faded = PILImage.blend(PILImage.new('RGB', logo.size, (255, 255, 255)), logo, 0.14)
+        buf = io.BytesIO()
+        faded.save(buf, format='PNG')
+        buf.seek(0)
+        _WATERMARK_IMAGE_CACHE = ImageReader(buf)
+    except Exception:
+        _WATERMARK_IMAGE_CACHE = False  # cache the failure too, don't retry every call
+
+    return _WATERMARK_IMAGE_CACHE or None
+
+
 def build_ticket_pdf(appointment: dict) -> io.BytesIO:
     """
     Builds a PDF ticket containing the booking details and a Code128 barcode
@@ -2179,6 +2243,15 @@ def build_ticket_pdf(appointment: dict) -> io.BytesIO:
 
     width, height = A6  # small ticket-sized page
     c = pdfcanvas.Canvas(buffer, pagesize=A6)
+
+    # Faint centered watermark, drawn first so everything else sits on top.
+    watermark = _get_watermark_image_reader()
+    if watermark:
+        wm_size = min(width, height) * 0.62
+        c.drawImage(
+            watermark, (width - wm_size) / 2, (height - wm_size) / 2,
+            wm_size, wm_size, mask='auto', preserveAspectRatio=True
+        )
 
     # Header band
     c.setFillColorRGB(0.09, 0.13, 0.17)
@@ -2615,6 +2688,7 @@ def dashboard():
     staff_members = []
     pending_workers = []
     pending_appointments = []
+    approved_appointments = []
     my_appointments = []
     staff_log_filter = ''
 
@@ -2647,6 +2721,12 @@ def dashboard():
             "WHERE approval_status = 'pending' ORDER BY id DESC"
         )
         pending_appointments = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute(
+            "SELECT id, full_name, service, preferred_date, location, approved_by, approved_at FROM appointments "
+            "WHERE approval_status = 'approved' ORDER BY approved_at DESC NULLS LAST LIMIT 50"
+        )
+        approved_appointments = [dict(row) for row in cursor.fetchall()]
 
         staff_log_filter = request.args.get('staff_log', '').strip().lower()
         if staff_log_filter:
@@ -2723,6 +2803,7 @@ def dashboard():
         staff_members=staff_members,
         pending_workers=pending_workers,
         pending_appointments=pending_appointments,
+        approved_appointments=approved_appointments,
         my_appointments=my_appointments,
         staff_log_filter=staff_log_filter,
         worker_form_error=worker_form_error,
@@ -2879,18 +2960,23 @@ def admin_approve_appointment():
 
     appointment_id = request.form.get('appointment_id', '').strip()
     confirmed_date = request.form.get('confirmed_date', '').strip()
+    approver_email = session['user']['email']
+    approved_at = datetime.now(timezone.utc)
 
     conn = get_db_connection()
     if confirmed_date:
         conn.execute(
-            "UPDATE appointments SET approval_status = 'approved', preferred_date = ? WHERE id = ?",
-            (confirmed_date, appointment_id)
+            "UPDATE appointments SET approval_status = 'approved', preferred_date = ?, approved_by = ?, approved_at = ? WHERE id = ?",
+            (confirmed_date, approver_email, approved_at, appointment_id)
         )
     else:
-        conn.execute("UPDATE appointments SET approval_status = 'approved' WHERE id = ?", (appointment_id,))
+        conn.execute(
+            "UPDATE appointments SET approval_status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?",
+            (approver_email, approved_at, appointment_id)
+        )
     conn.commit()
     conn.close()
-    log_activity(session['user']['email'], f"Approved and scheduled appointment #{appointment_id} for {confirmed_date}")
+    log_activity(approver_email, f"Approved and scheduled appointment #{appointment_id} for {confirmed_date}")
     return redirect(url_for('dashboard', toast=f"Logged: approved & scheduled appointment #{appointment_id}"))
 
 
