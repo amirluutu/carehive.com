@@ -415,6 +415,13 @@ def init_db():
     conn.close()
 
 
+# Vercel imports this module and calls the `app` WSGI object directly -
+# it never executes the `if __name__ == '__main__':` block below, so
+# init_db() has to run here too or production never gets new tables/
+# columns (this is what caused the missing "reviews" table crash).
+init_db()
+
+
 # ---------------------------------------------------------
 # HTML Templates
 # ---------------------------------------------------------
