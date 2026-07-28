@@ -362,6 +362,10 @@ def init_db():
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_by TEXT")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP")
     cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS visit_status TEXT DEFAULT 'scheduled'")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS preferred_time TEXT")
+    cursor.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS resolved_place TEXT")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0")
+    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT")
     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
@@ -379,6 +383,16 @@ def init_db():
 
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_appointments_service ON appointments(service);')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS gps_logs (
+            id SERIAL PRIMARY KEY,
+            latitude REAL,
+            longitude REAL,
+            address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
 
     admin_email = "admin@carehive.com"
     cursor.execute("SELECT password FROM users WHERE email = ?", (admin_email,))
@@ -466,18 +480,19 @@ INDEX_HTML = """
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <button type="button" onclick="openLogoLightbox()" title="View full logo" class="cursor-zoom-in">
-                    <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="h-14 w-auto rounded-xl object-contain border border-slate-100 shadow-sm hover:opacity-80 transition-opacity" onerror="this.onerror=null; this.src='https://placehold.co/180x180?text=Carehive';">
-                </button>
-                <a href="/">
-                    <span class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight block">Care<span class="text-blue-600">Hive</span></span>
-                    <span class="text-[10px] text-blue-700 font-bold tracking-wider uppercase block -mt-1">Homecare Limited</span>
+                <a href="/" class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">CH</div>
+                    <div>
+                        <span class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight block">Care<span class="text-blue-600">Hive</span></span>
+                        <span class="text-[10px] text-blue-700 font-bold tracking-wider uppercase block -mt-1">Homecare Limited</span>
+                    </div>
                 </a>
             </div>
 
             <nav class="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
                 <a href="#services" class="hover:text-blue-600 transition-colors">Services</a>
                 <a href="#how-it-works" class="hover:text-blue-600 transition-colors">How It Works</a>
+                <a href="#impact" class="hover:text-blue-600 transition-colors">Our Impact</a>
                 <a href="#reviews" class="hover:text-blue-600 transition-colors">Testimonials</a>
                 <a href="#contact" class="hover:text-blue-600 transition-colors">Contact</a>
                 <button onclick="openBookingForm()" class="hover:text-blue-600 transition-colors">Book Care</button>
@@ -485,6 +500,9 @@ INDEX_HTML = """
 
             <div class="flex items-center gap-3">
                 {% if is_logged_in %}
+                {% if current_fullname %}
+                <span class="hidden sm:inline text-sm text-slate-500">Hello, <span class="font-semibold text-slate-700">{{ current_fullname }}</span></span>
+                {% endif %}
                 <a href="/dashboard" class="text-sm font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 transition-colors">My Account</a>
                 <a href="/logout" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all">
                     Log Out
@@ -498,15 +516,6 @@ INDEX_HTML = """
             </div>
         </div>
     </header>
-
-    <div id="logo-lightbox" class="hidden fixed inset-0 z-[60] bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-6" onclick="closeLogoLightbox()">
-        <button type="button" onclick="closeLogoLightbox()" class="absolute top-6 right-6 text-white/80 hover:text-white text-3xl"><i class="fa-solid fa-xmark"></i></button>
-        <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" alt="Carehive Logo" class="max-w-full max-h-full rounded-2xl shadow-2xl" onerror="this.onerror=null; this.src='https://placehold.co/400x400?text=Carehive';">
-    </div>
-    <script>
-        function openLogoLightbox() { document.getElementById('logo-lightbox').classList.remove('hidden'); }
-        function closeLogoLightbox() { document.getElementById('logo-lightbox').classList.add('hidden'); }
-    </script>
 
     {% if booking_reference %}
     <div class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -568,28 +577,13 @@ INDEX_HTML = """
                     </p>
 
                     {% if is_logged_in %}
-                    <div class="bg-white p-4 rounded-2xl shadow-2xl text-slate-800 space-y-3 mt-6">
-                        <div class="grid sm:grid-cols-2 gap-3 text-left">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Care Required</label>
-                                <select id="hero-service-select" class="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
-                                    <option value="Blood Pressure Check">Blood Pressure Check</option>
-                                    <option value="Elderly Care">Elderly & Respiratory Care</option>
-                                    <option value="Baby Care">Pediatric & Baby Care</option>
-                                    <option value="Post Surgery Care">Post-Surgery Support</option>
-                                    <option value="Other">Other (Specify in Form)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Select District</label>
-                                <select id="hero-district-select" class="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
-                                    <option value="">-- All Districts --</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button onclick="handleHeroBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-magnifying-glass"></i> Find Care & Book
+                    <div class="mt-6">
+                        <button onclick="openBookingForm()" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl shadow-2xl transition-all hover:-translate-y-0.5">
+                            <i class="fa-solid fa-calendar-check"></i> Book Care Visit
                         </button>
+                        <p class="text-slate-400 text-xs mt-2">
+                            <a href="/dashboard" class="underline hover:text-slate-200">Go to My Account</a> to see your appointments.
+                        </p>
                     </div>
                     {% else %}
                     <div class="mt-6">
@@ -713,6 +707,58 @@ INDEX_HTML = """
             </div>
         </section>
 
+        <section id="impact" class="py-20 bg-slate-900 text-white overflow-hidden relative">
+            <div class="max-w-7xl mx-auto px-6 relative z-10">
+                <div class="text-center max-w-2xl mx-auto mb-14">
+                    <div class="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
+                        <i class="fa-solid fa-chart-line"></i> Our Impact
+                    </div>
+                    <h2 class="text-3xl font-bold text-white">Real Care, Measured Results</h2>
+                    <p class="text-slate-300 mt-3">Every number below reflects a family we've supported and a caregiver we've placed at their door.</p>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-14">
+                    <a href="#contact" class="block p-5 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg hover:-translate-y-1 transition-transform text-center">
+                        <p class="text-3xl font-extrabold">{{ site_stats['families_helped'] }}+</p>
+                        <p class="text-xs text-blue-100 font-semibold uppercase tracking-wide mt-1">Families Helped</p>
+                    </a>
+                    <a href="#services" class="block p-5 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 shadow-lg hover:-translate-y-1 transition-transform text-center">
+                        <p class="text-3xl font-extrabold">{{ site_stats['visits_completed'] }}+</p>
+                        <p class="text-xs text-emerald-100 font-semibold uppercase tracking-wide mt-1">Visits Completed</p>
+                    </a>
+                    <a href="#services" class="block p-5 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg hover:-translate-y-1 transition-transform text-center">
+                        <p class="text-3xl font-extrabold">{{ site_stats['requests_served'] }}+</p>
+                        <p class="text-xs text-amber-100 font-semibold uppercase tracking-wide mt-1">Requests Served</p>
+                    </a>
+                    <a href="#reviews" class="block p-5 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-700 shadow-lg hover:-translate-y-1 transition-transform text-center">
+                        <p class="text-3xl font-extrabold">{{ site_stats['avg_rating'] }}/5</p>
+                        <p class="text-xs text-rose-100 font-semibold uppercase tracking-wide mt-1">Client Satisfaction</p>
+                    </a>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-4">
+                    <div class="flex items-center gap-3 px-4 py-3 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                        <div class="w-10 h-10 shrink-0 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                            <i class="fa-solid fa-lock text-purple-300"></i>
+                        </div>
+                        <span class="font-medium text-sm text-white/90">100% Confidential Care</span>
+                    </div>
+                    <div class="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                        <div class="w-10 h-10 shrink-0 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                            <i class="fa-solid fa-user-nurse text-amber-300"></i>
+                        </div>
+                        <span class="font-medium text-sm text-white/90">{{ site_stats['on_duty_count'] }} Caregivers On Duty Now</span>
+                    </div>
+                    <div class="flex items-center gap-3 px-4 py-3 bg-rose-500/10 border border-rose-500/30 rounded-xl">
+                        <div class="w-10 h-10 shrink-0 rounded-lg bg-rose-500/20 flex items-center justify-center">
+                            <i class="fa-solid fa-heart-pulse text-rose-300"></i>
+                        </div>
+                        <span class="font-medium text-sm text-white/90">24/7 On-Call Support</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section id="reviews" class="py-12 bg-white">
             <div class="max-w-4xl mx-auto px-6">
                 <div class="text-center max-w-2xl mx-auto mb-6">
@@ -823,6 +869,7 @@ INDEX_HTML = """
                 <ul class="space-y-2 text-sm">
                     <li><a href="#services" class="hover:text-white transition-colors">Services</a></li>
                     <li><a href="#how-it-works" class="hover:text-white transition-colors">How It Works</a></li>
+                    <li><a href="#impact" class="hover:text-white transition-colors">Our Impact</a></li>
                     <li><a href="#reviews" class="hover:text-white transition-colors">Testimonials</a></li>
                     <li><a href="#contact" class="hover:text-white transition-colors">Contact</a></li>
                 </ul>
@@ -907,7 +954,7 @@ INDEX_HTML = """
                 <div>
                     <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Patient's Photo</label>
                     <input type="file" name="photo" accept="image/*" required class="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:text-xs file:font-bold">
-                    <p class="text-xs text-slate-400 mt-1">A clear photo of the patient — not shared publicly.</p>
+                    <p class="text-xs text-slate-400 mt-1">A clear photo of the patient — not shared publicly. Only checked for a valid, reasonably-sized image file — this does <strong>not</strong> detect or verify a face.</p>
                 </div>
 
                 <div>
@@ -998,6 +1045,15 @@ INDEX_HTML = """
                     <p class="text-xs text-slate-400 mt-1">Bookings can be scheduled up to 2 months ahead.</p>
                 </div>
                 <div>
+                    <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5"><i class="fa-solid fa-clock text-blue-600 mr-1"></i> Preferred Time of Day</label>
+                    <select name="preferred_time" required class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
+                        <option value="">-- Choose a time --</option>
+                        <option value="Morning (8am - 12pm)">Morning (8am - 12pm)</option>
+                        <option value="Afternoon (12pm - 4pm)">Afternoon (12pm - 4pm)</option>
+                        <option value="Evening (4pm - 8pm)">Evening (4pm - 8pm)</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-sm font-semibold text-slate-600 uppercase mb-1.5">Additional Notes</label>
                     <textarea name="notes" placeholder="Anything our care team should know..." class="w-full p-3 border border-slate-200 rounded-xl text-sm h-20"></textarea>
                 </div>
@@ -1032,21 +1088,13 @@ INDEX_HTML = """
 
         function populateDistricts() {
             const districtSelect = document.getElementById('district-select');
-            const heroDistrictSelect = document.getElementById('hero-district-select');
             districtSelect.innerHTML = '<option value="">-- Choose District --</option>';
-            if (heroDistrictSelect) heroDistrictSelect.innerHTML = '<option value="">-- All Districts --</option>';
 
             for (const district in ugandaGeoData) {
                 const opt = document.createElement('option');
                 opt.value = district;
                 opt.textContent = `${district} (${ugandaGeoData[district].region} Region)`;
                 districtSelect.appendChild(opt);
-                if (heroDistrictSelect) {
-                    const heroOpt = document.createElement('option');
-                    heroOpt.value = district;
-                    heroOpt.textContent = district;
-                    heroDistrictSelect.appendChild(heroOpt);
-                }
             }
 
             const otherDistrictOpt = document.createElement('option');
@@ -1153,10 +1201,6 @@ INDEX_HTML = """
                 ? '<i class="fa-solid fa-pen-nib"></i> Share Your Experience'
                 : '<i class="fa-solid fa-xmark"></i> Close';
             if (!isHidden) wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-        function handleHeroBooking() {
-            openBookingForm(document.getElementById('hero-service-select').value, document.getElementById('hero-district-select').value);
         }
 
         function getLocation() {
@@ -1351,6 +1395,10 @@ SETTINGS_HTML = COMMON_HEAD + """
                     <input type="text" name="fullname" value="{{ user['fullname'] }}" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
                 <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Phone Number</label>
+                    <input type="tel" name="phone" value="{{ user['phone'] or '' }}" placeholder="+256 700 000 000" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">New Password (Optional)</label>
                     <input type="password" name="password" placeholder="••••••••" class="w-full p-3 border border-slate-200 rounded-xl text-sm">
                 </div>
@@ -1387,7 +1435,7 @@ DASHBOARD_HTML = """
                     <button onclick="toggleSidebar(false)" class="md:hidden absolute top-3 right-3 text-slate-400 hover:text-white p-1" aria-label="Close menu">
                         <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
-                    <img src="/static/images/{{ 'company-logo.jpeg'|url_encode_path }}" class="w-20 h-20 rounded-xl object-contain bg-white p-1 border" onerror="this.src='https://placehold.co/100x100?text=CH';">
+                    <div class="w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">CH</div>
                     <div>
                         <h2 class="font-black text-white text-lg tracking-wide">CAREHIVE</h2>
                         <span class="text-xs text-blue-400 font-bold uppercase">Portal Dashboard</span>
@@ -1403,11 +1451,6 @@ DASHBOARD_HTML = """
                     {% if perms.get('view_appointments') %}
                     <a href="/admin" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
                         <i class="fa-solid fa-calendar-check w-5 text-blue-400"></i> Appointments Table
-                    </a>
-                    {% endif %}
-                    {% if perms.get('view_files') %}
-                    <a href="/files" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
-                        <i class="fa-solid fa-folder-open w-5 text-yellow-400"></i> Files & PDF Tickets
                     </a>
                     {% endif %}
                     <a href="/" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800 hover:text-white rounded-xl font-medium transition">
@@ -1439,17 +1482,14 @@ DASHBOARD_HTML = """
                     </button>
                     <div>
                         <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Dashboard Overview</h1>
-                        <p class="text-xs text-slate-500 hidden sm:block">Welcome back, {{ session['user']['fullname'] }}</p>
+                        <p class="text-xs text-slate-500">{% if session['user']['role'] == 'admin' %}Welcome back, System Administrator{% else %}Welcome back, {{ session['user']['fullname'] }}{% endif %}</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4">
-                    <a href="/settings" class="hidden sm:flex text-xs font-semibold text-slate-600 hover:text-blue-600 items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border">
-                        <i class="fa-solid fa-gear"></i> Settings
-                    </a>
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider
                         {% if session['user']['role'] == 'admin' %} bg-purple-100 text-purple-800 border border-purple-200 {% else %} bg-blue-100 text-blue-800 border border-blue-200 {% endif %}">
                         <i class="fa-solid {% if session['user']['role'] == 'admin' %}fa-shield-halved{% else %}fa-user{% endif %}"></i>
-                        {% if session['user']['role'] == 'admin' and session['user']['email'] == 'admin@carehive.com' %}Master Admin{% else %}{{ session['user']['role'] }}{% endif %}
+                        {% if session['user']['role'] == 'admin' and session['user']['email'] == 'admin@carehive.com' %}Master Admin{% elif session['user']['role'] == 'admin' %}Admin{% elif session['user']['role'] == 'staff' %}Staff{% else %}{{ session['user']['fullname'] }}{% endif %}
                     </span>
                 </div>
             </header>
@@ -1534,6 +1574,19 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
+                {% if session['user']['email'] == 'admin@carehive.com' %}
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-user-shield text-purple-600 mr-2"></i> Create Admin Account</h3>
+                    <p class="text-xs text-slate-500 mb-4">Named admins get full access except deleting staff or client accounts — that stays limited to this master account.</p>
+                    <form action="/admin/create-admin" method="POST" class="grid md:grid-cols-3 gap-4">
+                        <input type="text" name="fullname" required placeholder="Full Name" class="p-3 border border-slate-200 rounded-xl text-sm">
+                        <input type="email" name="email" required placeholder="Admin Email" class="p-3 border border-slate-200 rounded-xl text-sm">
+                        <input type="password" name="password" required placeholder="Password" class="p-3 border border-slate-200 rounded-xl text-sm">
+                        <button type="submit" class="md:col-span-3 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition text-sm">Create Admin</button>
+                    </form>
+                </div>
+                {% endif %}
+
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Register New Worker</h3>
                     <p class="text-xs text-slate-500 mb-4">Step 1 of 2 — this just registers their account. They won't have any access until you activate them below and assign a role.</p>
@@ -1553,16 +1606,8 @@ DASHBOARD_HTML = """
                                 <input type="text" name="nin" required placeholder="e.g. CM12345678ABCD" pattern="^[A-Za-z]{2}[A-Za-z0-9]{12}$" title="14 characters, starts with 2 letters (e.g. CM/CF)" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">NSSF Number</label>
-                                <input type="text" name="nssf_number" required placeholder="10 digit number" pattern="^[0-9]{6,12}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">TIN</label>
-                                <input type="text" name="tin_number" required placeholder="10 digit URA TIN" pattern="^[0-9]{10}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Passport Number</label>
-                                <input type="text" name="passport_number" required placeholder="e.g. B1234567" pattern="^[A-Za-z0-9]{6,9}$" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date of Birth</label>
+                                <input type="date" name="date_of_birth" required max="{{ today }}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Next of Kin — Name</label>
@@ -1611,10 +1656,12 @@ DASHBOARD_HTML = """
                                     </button>
                                 </div>
                             </form>
+                            {% if session['user']['email'] == 'admin@carehive.com' %}
                             <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Reject and remove this registration?');">
                                 <input type="hidden" name="email" value="{{ worker['email'] }}">
                                 <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Reject & Remove</button>
                             </form>
+                            {% endif %}
                         </div>
                         {% else %}
                         <p class="p-6 text-sm text-slate-400 text-center">No pending worker registrations.</p>
@@ -1633,7 +1680,7 @@ DASHBOARD_HTML = """
                             <div>
                                 <p class="font-bold text-slate-900">{{ appt['full_name'] }} &middot; {{ appt['phone'] }}</p>
                                 <p class="text-sm text-slate-600">{{ appt['service'] }}</p>
-                                <p class="text-xs text-slate-400">Requested for {{ appt['preferred_date'] }} &middot; {{ appt['location'] }}</p>
+                                <p class="text-xs text-slate-400">Requested for {{ appt['preferred_date'] }}{% if appt['preferred_time'] %} &middot; {{ appt['preferred_time'] }}{% endif %} &middot; {{ appt['location'] }}</p>
                             </div>
                             <div class="flex flex-wrap gap-2 items-center">
                                 <form action="/admin/approve-appointment" method="POST" class="flex items-center gap-2">
@@ -1676,7 +1723,7 @@ DASHBOARD_HTML = """
                                 <tr>
                                     <td class="p-4 font-medium text-slate-900">{{ appt['full_name'] }}</td>
                                     <td class="p-4">{{ appt['service'] }}</td>
-                                    <td class="p-4">{{ appt['preferred_date'] }}</td>
+                                    <td class="p-4">{{ appt['preferred_date'] }}{% if appt['preferred_time'] %}<br><span class="text-xs text-slate-400">{{ appt['preferred_time'] }}</span>{% endif %}</td>
                                     <td class="p-4 font-mono text-xs">{{ appt['approved_by'] or '—' }}</td>
                                     <td class="p-4 font-mono text-xs text-slate-400">{{ appt['approved_at'] or '—' }}</td>
                                     <td class="p-4">
@@ -1690,7 +1737,8 @@ DASHBOARD_HTML = """
                                     </td>
                                     <td class="p-4">
                                         {% if appt['visit_status'] not in ['completed', 'cancelled'] %}
-                                        <div class="flex gap-2">
+                                        <div class="flex gap-2 flex-wrap">
+                                            <button type="button" onclick="openEditAppointmentModal({{ appt['id'] }}, {{ appt['service']|tojson }}, {{ appt['preferred_date']|tojson }}, {{ (appt['preferred_time'] or '')|tojson }}, {{ appt['location']|tojson }}, {{ (appt['notes'] or '')|tojson }})" class="text-xs text-indigo-600 hover:underline font-semibold">Edit</button>
                                             <form action="/admin/complete-appointment" method="POST">
                                                 <input type="hidden" name="appointment_id" value="{{ appt['id'] }}">
                                                 <button type="submit" class="text-xs text-blue-600 hover:underline font-semibold">Mark Completed</button>
@@ -1782,7 +1830,7 @@ DASHBOARD_HTML = """
                                     </td>
                                     <td class="p-4 space-y-1">
                                         <button type="button" onclick="openStaffLogModal('{{ staff['email'] }}', '{{ staff['name'] }}')" class="text-xs text-indigo-600 hover:underline font-semibold block">View Full Log</button>
-                                        {% if staff['email'] != 'admin@carehive.com' %}
+                                        {% if staff['email'] != 'admin@carehive.com' and session['user']['email'] == 'admin@carehive.com' %}
                                         <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Remove this account?');">
                                             <input type="hidden" name="email" value="{{ staff['email'] }}">
                                             <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Remove</button>
@@ -1795,7 +1843,7 @@ DASHBOARD_HTML = """
                         </table>
                     </div>
                     <p class="text-[11px] text-slate-400 p-4 border-t border-slate-100">
-                        <i class="fa-solid fa-circle-info mr-1"></i> NIN/NSSF/TIN/passport numbers are format-checked only, and ID photos are screened for a detectable face —
+                        <i class="fa-solid fa-circle-info mr-1"></i> NIN numbers are format-checked only, and ID photos are screened for a detectable face —
                         neither confirms a worker's identity against government records. Real ID verification needs a paid KYC/identity-verification API
                         (e.g. Smile Identity, Onfido) wired in with your own account credentials.
                     </p>
@@ -1804,7 +1852,7 @@ DASHBOARD_HTML = """
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
                         <h3 class="font-bold text-slate-900"><i class="fa-solid fa-users text-blue-600 mr-2"></i> Client Accounts</h3>
-                        <p class="text-xs text-slate-500 mt-1">Everyone who signed up as a client. Deleting here fully removes the account — they'd need to sign up again from scratch.</p>
+                        <p class="text-xs text-slate-500 mt-1">Everyone who signed up as a client. Deleting here deactivates the account — it moves to the Recycle Bin below and can be restored.</p>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-slate-600">
@@ -1825,14 +1873,54 @@ DASHBOARD_HTML = """
                                     <td class="p-4">{{ client['phone'] or '—' }}</td>
                                     <td class="p-4">{{ client['date_of_birth'] or '—' }}</td>
                                     <td class="p-4">
-                                        <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Permanently delete this client account?');">
+                                        {% if session['user']['email'] == 'admin@carehive.com' %}
+                                        <form action="/admin/remove-staff" method="POST" onsubmit="return confirm('Move this client account to the recycle bin?');">
                                             <input type="hidden" name="email" value="{{ client['email'] }}">
                                             <button type="submit" class="text-xs text-red-600 hover:underline font-semibold">Delete</button>
                                         </form>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr><td colspan="5" class="p-6 text-center text-slate-400">No client accounts yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-trash-can text-slate-500 mr-2"></i> Recycle Bin</h3>
+                        <p class="text-xs text-slate-500 mt-1">Removed staff, client, and worker accounts. Restore brings them back exactly as they were.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b">
+                                <tr>
+                                    <th class="p-4">Name</th>
+                                    <th class="p-4">Email</th>
+                                    <th class="p-4">Role</th>
+                                    <th class="p-4">Removed At</th>
+                                    <th class="p-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {% for u in deleted_users %}
+                                <tr>
+                                    <td class="p-4 font-medium text-slate-900">{{ u['name'] }}</td>
+                                    <td class="p-4">{{ u['email'] }}</td>
+                                    <td class="p-4">{{ u['role'] }}</td>
+                                    <td class="p-4 text-xs font-mono text-slate-400">{{ u['deleted_at'] or '—' }}</td>
+                                    <td class="p-4">
+                                        <form action="/admin/restore-user" method="POST">
+                                            <input type="hidden" name="email" value="{{ u['email'] }}">
+                                            <button type="submit" class="text-xs text-emerald-600 hover:underline font-semibold">Restore</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="p-6 text-center text-slate-400">Recycle bin is empty.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -1953,9 +2041,6 @@ DASHBOARD_HTML = """
                                 View Appointments
                             </a>
                             {% endif %}
-                            <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm">
-                                Account Settings
-                            </a>
                         </div>
                         {% else %}
                         <h2 class="text-2xl font-bold text-slate-900 mb-2">Welcome to Your Carehive Portal</h2>
@@ -1963,9 +2048,6 @@ DASHBOARD_HTML = """
                         <div class="flex flex-wrap gap-4">
                             <a href="/?book=1" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition text-sm">
                                 Book Care Visit
-                            </a>
-                            <a href="/settings" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-3 rounded-xl border transition text-sm">
-                                Account Settings
                             </a>
                         </div>
                         {% endif %}
@@ -1975,9 +2057,7 @@ DASHBOARD_HTML = """
                             <span class="text-xs uppercase font-bold text-slate-400 block mb-1">Account Info</span>
                             <h3 class="font-bold text-slate-900 text-lg">{{ session['user']['fullname'] }}</h3>
                             <p class="text-xs text-slate-500 font-mono mt-0.5">{{ session['user']['email'] }}</p>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-slate-100">
-                            <a href="/settings" class="text-xs text-blue-600 font-bold hover:underline">Edit profile settings →</a>
+                            <p class="text-xs text-slate-500 font-mono mt-0.5">{{ session['user'].get('phone') or 'No phone number on file' }}</p>
                         </div>
                     </div>
                 </div>
@@ -2013,37 +2093,6 @@ DASHBOARD_HTML = """
                     <p class="text-sm text-slate-400">No staff currently marked on duty.</p>
                     {% endif %}
                 </div>
-
-                {% if session['user']['role'] != 'staff' %}
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-6 border-b border-slate-200">
-                        <h3 class="font-bold text-slate-900"><i class="fa-solid fa-calendar-check text-blue-600 mr-2"></i> My Appointments</h3>
-                    </div>
-                    <div class="divide-y divide-slate-100">
-                        {% for appt in my_appointments %}
-                        <div class="p-6 flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p class="font-bold text-slate-900">{{ appt['service'] }}</p>
-                                <p class="text-xs text-slate-400">{{ appt['preferred_date'] }} &middot; {{ appt['location'] }} &middot; Ref: {{ appt['reference'] or 'pending' }}</p>
-                            </div>
-                            {% if appt['approval_status'] == 'approved' and appt['visit_status'] == 'completed' %}
-                            <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-semibold">Visit Completed</span>
-                            {% elif appt['approval_status'] == 'approved' and appt['visit_status'] == 'cancelled' %}
-                            <span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full font-semibold">Cancelled</span>
-                            {% elif appt['approval_status'] == 'approved' %}
-                            <span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">Approved & Scheduled</span>
-                            {% elif appt['approval_status'] == 'rejected' %}
-                            <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-semibold">Not Approved</span>
-                            {% else %}
-                            <span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-semibold">Pending Approval</span>
-                            {% endif %}
-                        </div>
-                        {% else %}
-                        <p class="p-6 text-sm text-slate-400 text-center">You haven't booked any appointments yet.</p>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 border-b border-slate-200">
@@ -2085,6 +2134,46 @@ DASHBOARD_HTML = """
             <div id="staff-log-modal-body" class="overflow-y-auto p-6 space-y-2 text-sm text-slate-600">
                 <p class="text-center text-slate-400">Loading...</p>
             </div>
+        </div>
+    </div>
+
+    <div id="edit-appointment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="max-w-lg w-full bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex items-center justify-between gap-3">
+                <h3 class="font-bold text-slate-900 text-lg">Edit Appointment</h3>
+                <button type="button" onclick="closeEditAppointmentModal()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form action="/admin/edit-appointment" method="POST" class="p-6 space-y-4">
+                <input type="hidden" name="appointment_id" id="edit-appt-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Service</label>
+                    <input type="text" name="service" id="edit-appt-service" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Date</label>
+                        <input type="date" name="preferred_date" id="edit-appt-date" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Time of Day</label>
+                        <select name="preferred_time" id="edit-appt-time" class="w-full p-3 border border-slate-200 rounded-xl text-sm bg-white">
+                            <option value="">-- Not set --</option>
+                            <option value="Morning (8am - 12pm)">Morning (8am - 12pm)</option>
+                            <option value="Afternoon (12pm - 4pm)">Afternoon (12pm - 4pm)</option>
+                            <option value="Evening (4pm - 8pm)">Evening (4pm - 8pm)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Location</label>
+                    <input type="text" name="location" id="edit-appt-location" required class="w-full p-3 border border-slate-200 rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Notes</label>
+                    <textarea name="notes" id="edit-appt-notes" rows="3" class="w-full p-3 border border-slate-200 rounded-xl text-sm"></textarea>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">Save Changes</button>
+            </form>
         </div>
     </div>
 
@@ -2142,6 +2231,20 @@ DASHBOARD_HTML = """
         function closeStaffLogModal() {
             document.getElementById('staff-log-modal').classList.add('hidden');
         }
+
+        function openEditAppointmentModal(id, service, preferredDate, preferredTime, location, notes) {
+            document.getElementById('edit-appt-id').value = id;
+            document.getElementById('edit-appt-service').value = service;
+            document.getElementById('edit-appt-date').value = preferredDate;
+            document.getElementById('edit-appt-time').value = preferredTime;
+            document.getElementById('edit-appt-location').value = location;
+            document.getElementById('edit-appt-notes').value = notes;
+            document.getElementById('edit-appointment-modal').classList.remove('hidden');
+        }
+
+        function closeEditAppointmentModal() {
+            document.getElementById('edit-appointment-modal').classList.add('hidden');
+        }
     </script>
 </body>
 </html>
@@ -2187,14 +2290,17 @@ ADMIN_APPOINTMENTS_HTML = """
                         <td class="p-4">{{ appt['phone'] }}</td>
                         <td class="p-4"><span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">{{ appt['service'] }}</span></td>
                         <td class="p-4">
-                            <div>{{ appt['location'] }}</div>
+                            {% if appt['resolved_place'] %}
+                            <div class="font-semibold text-slate-700">{{ appt['resolved_place'] }}</div>
+                            {% endif %}
+                            <div{% if appt['resolved_place'] %} class="text-xs text-slate-400"{% endif %}>{{ appt['location'] }}</div>
                             {% if appt['latitude'] and appt['longitude'] %}
                             <a href="https://www.google.com/maps?q={{ appt['latitude'] }},{{ appt['longitude'] }}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-bold mt-1">
                                 <i class="fa-solid fa-map-pin text-red-500"></i> View Live GPS Pin
                             </a>
                             {% endif %}
                         </td>
-                        <td class="p-4 font-mono text-xs">{{ appt['preferred_date'] }}</td>
+                        <td class="p-4 font-mono text-xs">{{ appt['preferred_date'] }}{% if appt['preferred_time'] %}<br>{{ appt['preferred_time'] }}{% endif %}</td>
                         <td class="p-4 text-xs italic">{{ appt['notes'] }}</td>
                         <td class="p-4">
                             {% if appt['reference'] %}
@@ -2278,7 +2384,7 @@ from reportlab.lib.pagesizes import A6
 from reportlab.graphics.barcode import code128
 
 
-def screen_photo_has_face(photo_bytes: bytes):
+def screen_photo_has_face(photo_bytes: bytes, filename: str = ""):
     """Sanity-screens uploaded photos before they're stored.
 
     IMPORTANT: this only verifies the upload is a genuine, reasonably-sized
@@ -2310,7 +2416,82 @@ def screen_photo_has_face(photo_bytes: bytes):
             return False, "Please upload a JPEG, PNG, or WEBP photo."
         return True, "OK"
     except Exception:
+        if filename.lower().endswith(('.heic', '.heif')):
+            return False, (
+                "That looks like an iPhone HEIC photo, which isn't supported yet. "
+                "Please switch your iPhone's camera format to \"Most Compatible\" "
+                "(Settings > Camera > Formats) and retake the photo, or convert it "
+                "to JPEG before uploading."
+            )
         return False, "That file doesn't look like a valid photo. Please try a different image."
+
+
+def reverse_geocode(lat, lng):
+    """Best-effort reverse geocoding of live-GPS coordinates into a place name.
+
+    Uses OpenStreetMap's free Nominatim endpoint, which requires a real
+    identifying User-Agent and is limited to ~1 request/second — acceptable
+    at this app's booking volume, but a paid geocoding API would be needed
+    if traffic grows a lot. Never blocks or fails the booking on error.
+    """
+    try:
+        import urllib.request as _urlreq
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lng}&zoom=16&addressdetails=0"
+        req = _urlreq.Request(url, headers={'User-Agent': 'CarehiveHomecare/1.0 (carehivehomecare@gmail.com)'})
+        with _urlreq.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return data.get('display_name')
+    except Exception:
+        return None
+
+
+GPS_LIST_EXAMPLE_COORDINATES = [
+    (0.46698, 32.62960),    # Kampala, Uganda
+    (51.5074, -0.1278),     # London, UK
+    (40.7128, -74.0060),    # New York, USA
+]
+
+
+@app.route('/gpslist', methods=['GET', 'POST'])
+def gps_list():
+    """Reverse-geocodes one or more GPS coordinates and logs each result to
+    the gps_logs table. Admin-only since it makes an external network call
+    and writes to the database on every request.
+
+    POST JSON body: {"coordinates": [[lat, lon], ...]}
+    GET (no body): reverse-geocodes a few example coordinates, for quick
+    manual testing in a browser.
+    """
+    if 'user' not in session or session['user']['role'] != 'admin':
+        return jsonify({"error": "unauthorized"}), 401
+
+    if request.method == 'POST' and request.is_json:
+        coordinates = request.get_json(silent=True).get('coordinates', []) or []
+    else:
+        coordinates = GPS_LIST_EXAMPLE_COORDINATES
+
+    conn = get_db_connection()
+    results = []
+    for lat, lon in coordinates:
+        address = reverse_geocode(lat, lon) or "Unknown"
+        conn.execute(
+            "INSERT INTO gps_logs (latitude, longitude, address) VALUES (?, ?, ?)",
+            (lat, lon, address)
+        )
+        results.append({"latitude": lat, "longitude": lon, "address": address})
+    conn.commit()
+    conn.close()
+
+    return jsonify(results)
+
+
+def run_gps_cli_test():
+    """CLI test: reverse-geocodes the example coordinates and prints results.
+    Run with: python Carehive_Homecare.py --gps-cli
+    """
+    for lat, lon in GPS_LIST_EXAMPLE_COORDINATES:
+        address = reverse_geocode(lat, lon) or "Unknown"
+        print(f"({lat}, {lon}) -> {address}")
 
 
 def generate_reference(appointment_id: int) -> str:
@@ -2399,6 +2580,8 @@ def build_ticket_pdf(appointment: dict) -> io.BytesIO:
     draw_line("Phone:", appointment['phone'])
     draw_line("Service:", appointment['service'])
     draw_line("Date:", appointment['preferred_date'])
+    if appointment.get('preferred_time'):
+        draw_line("Time:", appointment['preferred_time'])
     draw_line("Location:", appointment['location'])
     if appointment.get('patient_dob'):
         draw_line("Patient DOB:", appointment['patient_dob'])
@@ -2456,7 +2639,7 @@ def get_permissions_for_session_user():
     conn.close()
     if row and row['permissions']:
         try:
-            return json.loads(row['permissions'])
+            return {**DEFAULT_STAFF_PERMISSIONS, **json.loads(row['permissions'])}
         except (ValueError, TypeError):
             return dict(DEFAULT_STAFF_PERMISSIONS)
     return dict(DEFAULT_STAFF_PERMISSIONS)
@@ -2498,6 +2681,13 @@ def home():
     on_duty_count = conn.execute(
         "SELECT COUNT(*) AS cnt FROM users WHERE on_duty = 1 AND role IN ('admin', 'staff')"
     ).fetchone()['cnt']
+    families_helped = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM users WHERE role = 'client'"
+    ).fetchone()['cnt']
+    requests_served = conn.execute('SELECT COUNT(*) AS cnt FROM appointments').fetchone()['cnt']
+    visits_completed = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM appointments WHERE visit_status = 'completed'"
+    ).fetchone()['cnt']
     conn.close()
 
     booking_reference = request.args.get('ref')
@@ -2509,11 +2699,15 @@ def home():
         'avg_rating': round(avg_rating_row['avg_rating'], 1) if avg_rating_row['avg_rating'] else 5.0,
         'district_count': len(uganda_geo.districts),
         'on_duty_count': on_duty_count,
+        'families_helped': families_helped,
+        'requests_served': requests_served,
+        'visits_completed': visits_completed,
     }
     return render_template_string(
         INDEX_HTML, reviews=reviews, booking_reference=booking_reference, booking_error=booking_error,
         today=today, max_booking_date=max_booking_date, site_stats=site_stats,
-        is_logged_in=bool(session.get('user'))
+        is_logged_in=bool(session.get('user')),
+        current_fullname=session.get('user', {}).get('fullname')
     )
 
 
@@ -2529,6 +2723,10 @@ def register_appointment():
     preferred_date = request.form.get('preferred_date', '').strip()
     if not (today_str <= preferred_date <= max_date_str):
         return redirect(url_for('home', error="Please choose a visit date between today and 2 months from now."))
+
+    preferred_time = request.form.get('preferred_time', '').strip()
+    if preferred_time not in ('Morning (8am - 12pm)', 'Afternoon (12pm - 4pm)', 'Evening (4pm - 8pm)'):
+        return redirect(url_for('home', error="Please choose a preferred time of day for your visit."))
 
     service = request.form.get('service', '').strip()
     if service == 'Other':
@@ -2548,20 +2746,21 @@ def register_appointment():
     photo_bytes = photo_file.read()
     if len(photo_bytes) > 5 * 1024 * 1024:
         return redirect(url_for('home', error="That photo is too large — please use one under 5MB."))
-    photo_ok, photo_reason = screen_photo_has_face(photo_bytes)
+    photo_ok, photo_reason = screen_photo_has_face(photo_bytes, photo_file.filename)
     if not photo_ok:
         return redirect(url_for('home', error=photo_reason))
 
     conn = get_db_connection()
     lat = request.form.get('latitude')
     lng = request.form.get('longitude')
+    resolved_place = reverse_geocode(lat, lng) if lat and lng else None
 
     cursor = conn.cursor()
     cursor.execute(
         '''INSERT INTO appointments
-           (full_name, phone, service, location, latitude, longitude, preferred_date, notes,
-            patient_dob, gender, photo, approval_status, booked_by_email)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+           (full_name, phone, service, location, latitude, longitude, preferred_date, preferred_time, notes,
+            patient_dob, gender, photo, approval_status, booked_by_email, resolved_place)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (
             request.form.get('full_name', '').strip(),
             request.form.get('phone', '').strip(),
@@ -2570,12 +2769,14 @@ def register_appointment():
             float(lat) if lat else None,
             float(lng) if lng else None,
             preferred_date,
+            preferred_time,
             request.form.get('notes', '').strip(),
             request.form.get('patient_dob', '').strip(),
             request.form.get('gender', '').strip(),
             psycopg2.Binary(photo_bytes),
             approval_status,
             session['user']['email'],
+            resolved_place,
         )
     )
     appointment_id = cursor.lastrowid
@@ -2585,7 +2786,9 @@ def register_appointment():
     conn.close()
 
     reference = create_booking_ticket(appointment_id, appointment_row)
-    log_activity(session['user']['email'], f"New booking created — reference {reference}")
+    location_note = f" near {resolved_place}" if resolved_place else ""
+    gps_note = f" at ({lat}, {lng})" if lat and lng else ""
+    log_activity(session['user']['email'], f"New booking created — reference {reference}{location_note}{gps_note}")
 
     return redirect(url_for('home', ref=reference))
 
@@ -2705,11 +2908,20 @@ def login():
         cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
         user = cursor.fetchone()
 
+        if user and user['is_deleted']:
+            conn.close()
+            return render_template_string(LOGIN_HTML, next=safe_next, error="This account has been deactivated.")
+
         if user and user['locked_until'] and str(user['locked_until']) > datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'):
             conn.close()
+            locked_until = user['locked_until']
+            if locked_until.tzinfo is not None:
+                locked_until = locked_until.replace(tzinfo=None)
+            now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+            minutes_left = max(1, int((locked_until - now_naive).total_seconds() // 60) + 1)
             return render_template_string(
                 LOGIN_HTML, next=safe_next,
-                error=f"Too many failed attempts. This account is locked for a few minutes — please try again shortly."
+                error=f"Too many failed attempts. This account is locked for about {minutes_left} more minute(s) — please try again shortly."
             )
 
         if user and check_password_hash(user['password'], password):
@@ -2720,7 +2932,7 @@ def login():
             if user['role'] == 'pending':
                 return render_template_string(LOGIN_HTML, next=safe_next, error="Your registration is pending admin approval. Please check back once you've been activated.")
 
-            session['user'] = {'email': user['email'], 'fullname': user['name'], 'role': user['role']}
+            session['user'] = {'email': user['email'], 'fullname': user['name'], 'role': user['role'], 'phone': user['phone']}
             USER_STATUS[email] = {'login_time': datetime.now(timezone.utc), 'last_active': datetime.now(timezone.utc), 'status': 'Active Online'}
             log_activity(email, f"Logged in as {user['role']}")
             return redirect(safe_next or url_for('dashboard'))
@@ -2762,17 +2974,18 @@ def settings():
 
     if request.method == 'POST':
         fullname = request.form.get('fullname', '').strip()
+        phone = request.form.get('phone', '').strip()
         new_password = request.form.get('password', '')
 
         cursor = conn.cursor()
         if new_password:
             hashed_pw = generate_password_hash(new_password)
-            cursor.execute('UPDATE users SET name = ?, password = ? WHERE email = ?', (fullname, hashed_pw, email))
+            cursor.execute('UPDATE users SET name = ?, phone = ?, password = ? WHERE email = ?', (fullname, phone, hashed_pw, email))
         else:
-            cursor.execute('UPDATE users SET name = ? WHERE email = ?', (fullname, email))
+            cursor.execute('UPDATE users SET name = ?, phone = ? WHERE email = ?', (fullname, phone, email))
         conn.commit()
 
-        session['user']['fullname'] = fullname
+        session['user'] = {**session['user'], 'fullname': fullname, 'phone': phone}
         log_activity(email, "Updated account settings")
         message = "Account settings successfully updated!"
 
@@ -2781,7 +2994,7 @@ def settings():
     db_user = cursor.fetchone()
     conn.close()
 
-    user_data = {'email': db_user['email'], 'fullname': db_user['name']}
+    user_data = {'email': db_user['email'], 'fullname': db_user['name'], 'phone': db_user['phone']}
     return render_template_string(SETTINGS_HTML, user=user_data, message=message)
 
 
@@ -2810,6 +3023,7 @@ def dashboard():
     pending_appointments = []
     approved_appointments = []
     my_appointments = []
+    deleted_users = []
     staff_log_filter = ''
 
     if session['user']['role'] == 'admin':
@@ -2822,31 +3036,34 @@ def dashboard():
         cursor.execute('SELECT COUNT(*) AS cnt FROM reviews')
         stats['reviews'] = cursor.fetchone()['cnt']
 
-        cursor.execute("SELECT name, email, role, permissions, on_duty FROM users WHERE role IN ('admin', 'staff')")
+        cursor.execute("SELECT name, email, role, permissions, on_duty FROM users WHERE role IN ('admin', 'staff') AND (is_deleted IS NULL OR is_deleted = 0)")
         staff_rows = cursor.fetchall()
         staff_members = []
         for row in staff_rows:
             item = dict(row)
             try:
-                item['permissions'] = json.loads(item['permissions']) if item['permissions'] else dict(DEFAULT_STAFF_PERMISSIONS)
+                item['permissions'] = {**DEFAULT_STAFF_PERMISSIONS, **json.loads(item['permissions'])} if item['permissions'] else dict(DEFAULT_STAFF_PERMISSIONS)
             except (ValueError, TypeError):
                 item['permissions'] = dict(DEFAULT_STAFF_PERMISSIONS)
             staff_members.append(item)
 
-        cursor.execute("SELECT name, email, phone FROM users WHERE role = 'pending' ORDER BY email")
+        cursor.execute("SELECT name, email, phone FROM users WHERE role = 'pending' AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY email")
         pending_workers = [dict(row) for row in cursor.fetchall()]
 
-        cursor.execute("SELECT name, email, phone, date_of_birth FROM users WHERE role = 'client' ORDER BY name")
+        cursor.execute("SELECT name, email, phone, date_of_birth FROM users WHERE role = 'client' AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY name")
         client_accounts = [dict(row) for row in cursor.fetchall()]
 
+        cursor.execute("SELECT name, email, role, deleted_at FROM users WHERE is_deleted = 1 ORDER BY deleted_at DESC NULLS LAST")
+        deleted_users = [dict(row) for row in cursor.fetchall()]
+
         cursor.execute(
-            "SELECT id, full_name, phone, service, preferred_date, location FROM appointments "
+            "SELECT id, full_name, phone, service, preferred_date, preferred_time, location FROM appointments "
             "WHERE approval_status = 'pending' ORDER BY id DESC"
         )
         pending_appointments = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute(
-            "SELECT id, full_name, service, preferred_date, location, approved_by, approved_at, visit_status "
+            "SELECT id, full_name, service, preferred_date, preferred_time, location, notes, approved_by, approved_at, visit_status "
             "FROM appointments WHERE approval_status = 'approved' ORDER BY approved_at DESC NULLS LAST LIMIT 50"
         )
         approved_appointments = [dict(row) for row in cursor.fetchall()]
@@ -2918,7 +3135,7 @@ def dashboard():
         my_appointments = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute(
-            "SELECT name, on_duty FROM users WHERE role IN ('admin', 'staff') AND on_duty = 1 ORDER BY name"
+            "SELECT name, on_duty FROM users WHERE role IN ('admin', 'staff') AND on_duty = 1 AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY name"
         )
         on_duty_staff = [dict(row) for row in cursor.fetchall()]
 
@@ -2941,11 +3158,13 @@ def dashboard():
         pending_appointments=pending_appointments,
         approved_appointments=approved_appointments,
         my_appointments=my_appointments,
+        deleted_users=deleted_users,
         staff_log_filter=staff_log_filter,
         worker_form_error=worker_form_error,
         toast_message=toast_message,
         activity=activity,
-        perms=perms
+        perms=perms,
+        today=datetime.now(timezone.utc).strftime('%Y-%m-%d')
     )
 
 
@@ -2965,9 +3184,42 @@ def admin_appointments():
 import re
 
 NIN_PATTERN = re.compile(r'^[A-Za-z]{2}[A-Za-z0-9]{12}$')       # e.g. CM12345678ABCD (14 chars)
-NSSF_PATTERN = re.compile(r'^[0-9]{6,12}$')
-TIN_PATTERN = re.compile(r'^[0-9]{10}$')                          # URA TIN is 10 digits
-PASSPORT_PATTERN = re.compile(r'^[A-Za-z0-9]{6,9}$')
+
+
+@app.route('/admin/create-admin', methods=['POST'])
+def admin_create_admin():
+    """Master-admin-only: creates a named admin account. Every admin gets
+    full permissions except deleting staff/client accounts, which stays
+    restricted to the original admin@carehive.com account (see the email
+    check in admin_remove_staff)."""
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    if session['user']['email'] != 'admin@carehive.com':
+        return redirect(url_for('dashboard'))
+
+    fullname = request.form.get('fullname', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '').strip()
+
+    if not all([fullname, email, password]):
+        return redirect(url_for('dashboard', worker_error="Name, email, and password are all required to create an admin account."))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT email FROM users WHERE email = ?', (email,))
+    if cursor.fetchone():
+        conn.close()
+        return redirect(url_for('dashboard', worker_error="That email is already registered."))
+
+    hashed_pw = generate_password_hash(password)
+    cursor.execute(
+        'INSERT INTO users (email, name, role, password, status) VALUES (?, ?, ?, ?, ?)',
+        (email, fullname, 'admin', hashed_pw, 'active')
+    )
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Created new admin account: {email}")
+    return redirect(url_for('dashboard', toast=f"Logged: created admin account {email}"))
 
 
 @app.route('/admin/create-worker', methods=['POST'])
@@ -2976,9 +3228,9 @@ def admin_create_worker():
     yet. They land in the 'pending' pool until an admin activates them via
     /admin/activate-worker.
 
-    NIN/NSSF/TIN/passport are format-validated only (regex checks that they
-    look like a real ID number). This is NOT government verification — that
-    would require a paid identity-verification/KYC API integration.
+    NIN is format-validated only (regex check that it looks like a real ID
+    number). This is NOT government verification — that would require a
+    paid identity-verification/KYC API integration.
     """
     if 'user' not in session:
         return redirect(url_for('login'))
@@ -2990,24 +3242,20 @@ def admin_create_worker():
     phone = request.form.get('phone', '').strip()
     password = request.form.get('password', '').strip()
     nin = request.form.get('nin', '').strip().upper()
-    nssf_number = request.form.get('nssf_number', '').strip()
-    tin_number = request.form.get('tin_number', '').strip()
-    passport_number = request.form.get('passport_number', '').strip().upper()
+    date_of_birth = request.form.get('date_of_birth', '').strip()
     next_of_kin_name = request.form.get('next_of_kin_name', '').strip()
     next_of_kin_phone = request.form.get('next_of_kin_phone', '').strip()
 
-    if not all([fullname, email, phone, password, nin, nssf_number, tin_number,
-                passport_number, next_of_kin_name, next_of_kin_phone]):
-        return redirect(url_for('dashboard', worker_error="All fields are required, including next of kin details."))
+    if not all([fullname, email, phone, password, nin, date_of_birth,
+                next_of_kin_name, next_of_kin_phone]):
+        return redirect(url_for('dashboard', worker_error="All fields are required, including date of birth and next of kin details."))
 
     if not NIN_PATTERN.match(nin):
         return redirect(url_for('dashboard', worker_error="That NIN doesn't look valid — it should be 14 characters, starting with 2 letters (e.g. CM12345678ABCD)."))
-    if not NSSF_PATTERN.match(nssf_number):
-        return redirect(url_for('dashboard', worker_error="That NSSF number doesn't look valid — digits only."))
-    if not TIN_PATTERN.match(tin_number):
-        return redirect(url_for('dashboard', worker_error="That TIN doesn't look valid — URA TINs are 10 digits."))
-    if not PASSPORT_PATTERN.match(passport_number):
-        return redirect(url_for('dashboard', worker_error="That passport number doesn't look valid."))
+
+    today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if date_of_birth > today_str:
+        return redirect(url_for('dashboard', worker_error="Date of birth cannot be in the future."))
 
     id_photo = request.files.get('id_photo')
     if not id_photo or not id_photo.filename:
@@ -3015,7 +3263,7 @@ def admin_create_worker():
     id_photo_bytes = id_photo.read()
     if len(id_photo_bytes) > 5 * 1024 * 1024:
         return redirect(url_for('dashboard', worker_error="That photo is too large — please use one under 5MB."))
-    photo_ok, photo_reason = screen_photo_has_face(id_photo_bytes)
+    photo_ok, photo_reason = screen_photo_has_face(id_photo_bytes, id_photo.filename)
     if not photo_ok:
         return redirect(url_for('dashboard', worker_error=photo_reason))
 
@@ -3029,11 +3277,11 @@ def admin_create_worker():
     hashed_pw = generate_password_hash(password)
     cursor.execute(
         '''INSERT INTO users
-           (email, name, role, password, phone, status, nin, nssf_number, tin_number,
-            passport_number, next_of_kin_name, next_of_kin_phone, id_photo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-        (email, fullname, 'pending', hashed_pw, phone, 'pending', nin, nssf_number, tin_number,
-         passport_number, next_of_kin_name, next_of_kin_phone, psycopg2.Binary(id_photo_bytes))
+           (email, name, role, password, phone, status, nin, date_of_birth,
+            next_of_kin_name, next_of_kin_phone, id_photo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        (email, fullname, 'pending', hashed_pw, phone, 'pending', nin, date_of_birth,
+         next_of_kin_name, next_of_kin_phone, psycopg2.Binary(id_photo_bytes))
     )
     conn.commit()
     conn.close()
@@ -3174,6 +3422,31 @@ def admin_cancel_appointment():
     return redirect(url_for('dashboard', toast=f"Logged: cancelled appointment #{appointment_id}"))
 
 
+@app.route('/admin/edit-appointment', methods=['POST'])
+def admin_edit_appointment():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
+
+    appointment_id = request.form.get('appointment_id', '').strip()
+    service = request.form.get('service', '').strip()
+    preferred_date = request.form.get('preferred_date', '').strip()
+    preferred_time = request.form.get('preferred_time', '').strip()
+    location = request.form.get('location', '').strip()
+    notes = request.form.get('notes', '').strip()
+
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE appointments SET service = ?, preferred_date = ?, preferred_time = ?, location = ?, notes = ? WHERE id = ?",
+        (service, preferred_date, preferred_time, location, notes, appointment_id)
+    )
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Edited appointment #{appointment_id}")
+    return redirect(url_for('dashboard', toast=f"Logged: edited appointment #{appointment_id}"))
+
+
 @app.route('/admin/edit-staff', methods=['POST'])
 def admin_edit_staff():
     if 'user' not in session:
@@ -3279,7 +3552,7 @@ def admin_toggle_duty():
 def admin_remove_staff():
     if 'user' not in session:
         return redirect(url_for('login'))
-    if session['user']['role'] != 'admin':
+    if session['user']['email'] != 'admin@carehive.com':
         return redirect(url_for('dashboard'))
 
     target_email = request.form.get('email', '').strip().lower()
@@ -3289,14 +3562,37 @@ def admin_remove_staff():
     conn = get_db_connection()
     target_row = conn.execute('SELECT role FROM users WHERE email = ?', (target_email,)).fetchone()
     target_role = target_row['role'] if target_row else 'account'
-    conn.execute("DELETE FROM users WHERE email = ? AND role != 'admin'", (target_email,))
+    conn.execute(
+        "UPDATE users SET is_deleted = 1, deleted_at = ? WHERE email = ? AND role != 'admin'",
+        (datetime.now(timezone.utc), target_email)
+    )
     conn.commit()
     conn.close()
     log_activity(session['user']['email'], f"Removed {target_role} account {target_email}")
     return redirect(url_for('dashboard', toast=f"Logged: removed {target_role} account {target_email}"))
 
 
+@app.route('/admin/restore-user', methods=['POST'])
+def admin_restore_user():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    if session['user']['role'] != 'admin':
+        return redirect(url_for('dashboard'))
+
+    target_email = request.form.get('email', '').strip().lower()
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET is_deleted = 0, deleted_at = NULL WHERE email = ?", (target_email,))
+    conn.commit()
+    conn.close()
+    log_activity(session['user']['email'], f"Restored account {target_email} from recycle bin")
+    return redirect(url_for('dashboard', toast=f"Logged: restored account {target_email}"))
+
+
 if __name__ == '__main__':
-    init_db()
-    print("Starting Carehive Homecare Limited Flask Application...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    import sys
+    if '--gps-cli' in sys.argv:
+        run_gps_cli_test()
+    else:
+        init_db()
+        print("Starting Carehive Homecare Limited Flask Application...")
+        app.run(host='0.0.0.0', port=5000, debug=True)

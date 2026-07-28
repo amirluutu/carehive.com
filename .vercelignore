@@ -1,0 +1,16 @@
+.git
+.claude
+.agents
+__pycache__
+*.pyc
+.env
+.env.*
+*.db
+output.md
+skills-lock.json
+work now.txt
+static/images/WhatsApp Business.html
+static/images/WhatsApp Business.mhtml
+static/tickets
+templates/home-background-bundled.html
+testfile.py
